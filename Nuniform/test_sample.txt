@@ -1,0 +1,18 @@
+#!/bin/bash
+# Test file with various issues for pattern checking
+
+echo "This is a normal line"
+
+	echo "This line starts with a tab (issue!)"
+echo "This line has trailing spaces    "
+echo "This line has a non-ASCII character: café"
+echo "TODO: Fix this later"
+echo "FIXME: This needs refactoring"
+echo "PLACEHOLDER: This needs to be implemented"
+
+# This is a line that is extremely long and exceeds the 80 character limit that we set in our configuration to demonstrate line length checking
+
+echo "Another normal line"
+
+
+echo "Multiple empty lines above this"

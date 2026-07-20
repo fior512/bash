@@ -1,0 +1,476 @@
+<svg width="1205pt" height="1471pt" viewBox="0.00 0.00 1205.00 1471.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 1466.8)">
+<title>callgraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-1466.8 1200.95,-1466.8 1200.95,4 -4,4"/>
+<text xml:space="preserve" text-anchor="middle" x="598.48" y="-1446.2" font-family="Courier,monospace" font-size="14.00">3 files</text>
+<g id="clust1" class="cluster">
+<title>cluster_0</title>
+<polygon fill="#eeeeee" stroke="black" points="8,-8 8,-1247 554.08,-1247 554.08,-8 8,-8"/>
+<text xml:space="preserve" text-anchor="middle" x="281.04" y="-1230.4" font-family="Courier,monospace" font-size="14.00">figure.hpp</text>
+</g>
+<g id="clust2" class="cluster">
+<title>cluster_1</title>
+<polygon fill="#eeeeee" stroke="black" points="574.08,-616 574.08,-1247 968.93,-1247 968.93,-616 574.08,-616"/>
+<text xml:space="preserve" text-anchor="middle" x="771.5" y="-1230.4" font-family="Courier,monospace" font-size="14.00">text.hpp</text>
+</g>
+<g id="clust3" class="cluster">
+<title>cluster_2</title>
+<polygon fill="#eeeeee" stroke="black" points="595.08,-1255 595.08,-1430 1188.95,-1430 1188.95,-1255 595.08,-1255"/>
+<text xml:space="preserve" text-anchor="middle" x="892.02" y="-1413.4" font-family="Courier,monospace" font-size="14.00">tick_engine.hpp</text>
+</g>
+<!-- plot2d/figure.hpp::::Figure -->
+<g id="node1" class="node">
+<title>plot2d/figure.hpp::::Figure</title>
+<polygon fill="#f5f5f5" stroke="black" points="195.83,-74.2 104.21,-74.2 104.21,-15.8 195.83,-15.8 195.83,-74.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-57.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-40.8" font-family="Courier,monospace" font-size="14.00">Figure()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-24" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::set_title -->
+<g id="node2" class="node">
+<title>plot2d/figure.hpp::::set_title</title>
+<polygon fill="#f5f5f5" stroke="black" points="204.23,-150.2 95.81,-150.2 95.81,-91.8 204.23,-91.8 204.23,-150.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-133.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-116.8" font-family="Courier,monospace" font-size="14.00">set_title()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-100" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::set_xlabel -->
+<g id="node3" class="node">
+<title>plot2d/figure.hpp::::set_xlabel</title>
+<polygon fill="#f5f5f5" stroke="black" points="208.43,-226.2 91.61,-226.2 91.61,-167.8 208.43,-167.8 208.43,-226.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-209.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-192.8" font-family="Courier,monospace" font-size="14.00">set_xlabel()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-176" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::set_ylabel -->
+<g id="node4" class="node">
+<title>plot2d/figure.hpp::::set_ylabel</title>
+<polygon fill="#f5f5f5" stroke="black" points="208.43,-302.2 91.61,-302.2 91.61,-243.8 208.43,-243.8 208.43,-302.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-285.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-268.8" font-family="Courier,monospace" font-size="14.00">set_ylabel()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-252" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::grid -->
+<g id="node5" class="node">
+<title>plot2d/figure.hpp::::grid</title>
+<polygon fill="#f5f5f5" stroke="black" points="195.83,-378.2 104.21,-378.2 104.21,-319.8 195.83,-319.8 195.83,-378.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-361.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-344.8" font-family="Courier,monospace" font-size="14.00">grid()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-328" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::axis -->
+<g id="node6" class="node">
+<title>plot2d/figure.hpp::::axis</title>
+<polygon fill="#f5f5f5" stroke="black" points="195.83,-454.2 104.21,-454.2 104.21,-395.8 195.83,-395.8 195.83,-454.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-437.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-420.8" font-family="Courier,monospace" font-size="14.00">axis()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-404" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::legend -->
+<g id="node7" class="node">
+<title>plot2d/figure.hpp::::legend</title>
+<polygon fill="#f5f5f5" stroke="black" points="195.83,-530.2 104.21,-530.2 104.21,-471.8 195.83,-471.8 195.83,-530.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-513.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-496.8" font-family="Courier,monospace" font-size="14.00">legend()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-480" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::layout -->
+<g id="node8" class="node">
+<title>plot2d/figure.hpp::::layout</title>
+<polygon fill="#f5f5f5" stroke="black" points="195.83,-606.2 104.21,-606.2 104.21,-547.8 195.83,-547.8 195.83,-606.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-589.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-572.8" font-family="Courier,monospace" font-size="14.00">layout()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-556" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::text -->
+<g id="node9" class="node">
+<title>plot2d/figure.hpp::::text</title>
+<polygon fill="#f5f5f5" stroke="black" points="195.83,-682.2 104.21,-682.2 104.21,-623.8 195.83,-623.8 195.83,-682.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-665.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-648.8" font-family="Courier,monospace" font-size="14.00">text()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-632" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::perf -->
+<g id="node10" class="node">
+<title>plot2d/figure.hpp::::perf</title>
+<polygon fill="#f5f5f5" stroke="black" points="195.83,-758.2 104.21,-758.2 104.21,-699.8 195.83,-699.8 195.83,-758.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-741.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-724.8" font-family="Courier,monospace" font-size="14.00">perf()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-708" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::plot -->
+<g id="node11" class="node">
+<title>plot2d/figure.hpp::::plot</title>
+<polygon fill="#f5f5f5" stroke="black" points="204.23,-834.2 95.81,-834.2 95.81,-775.8 204.23,-775.8 204.23,-834.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-817.6" font-family="Courier,monospace" font-size="14.00">PlotCommand</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-800.8" font-family="Courier,monospace" font-size="14.00">plot()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-784" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::plot_ref -->
+<g id="node12" class="node">
+<title>plot2d/figure.hpp::::plot_ref</title>
+<polygon fill="#f5f5f5" stroke="black" points="204.23,-910.2 95.81,-910.2 95.81,-851.8 204.23,-851.8 204.23,-910.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-893.6" font-family="Courier,monospace" font-size="14.00">PlotCommand</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-876.8" font-family="Courier,monospace" font-size="14.00">plot_ref()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-860" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::render -->
+<g id="node13" class="node">
+<title>plot2d/figure.hpp::::render</title>
+<polygon fill="#f5f5f5" stroke="black" points="195.83,-986.2 104.21,-986.2 104.21,-927.8 195.83,-927.8 195.83,-986.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-969.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-952.8" font-family="Courier,monospace" font-size="14.00">render()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-936" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::compute_plot_area -->
+<g id="node17" class="node">
+<title>plot2d/figure.hpp::::compute_plot_area</title>
+<polygon fill="#f5f5f5" stroke="black" points="520.87,-682.2 345.25,-682.2 345.25,-623.8 520.87,-623.8 520.87,-682.2"/>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-665.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-648.8" font-family="Courier,monospace" font-size="14.00">compute_plot_area()</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-632" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render&#45;&gt;plot2d/figure.hpp::::compute_plot_area -->
+<g id="edge1" class="edge">
+<title>plot2d/figure.hpp::::render-&gt;plot2d/figure.hpp::::compute_plot_area</title>
+<path fill="none" stroke="black" d="M196.07,-956.01C225.4,-952.86 262.15,-943.73 284.04,-919 352.04,-842.18 253.94,-769.45 320.04,-691 324.41,-685.82 329.51,-681.34 335.08,-677.47"/>
+<polygon fill="black" stroke="black" points="336.85,-680.5 343.57,-672.31 333.21,-674.52 336.85,-680.5"/>
+</g>
+<!-- plot2d/figure.hpp::::compute_data_bounds -->
+<g id="node18" class="node">
+<title>plot2d/figure.hpp::::compute_data_bounds</title>
+<polygon fill="#f5f5f5" stroke="black" points="529.27,-758.2 336.84,-758.2 336.84,-699.8 529.27,-699.8 529.27,-758.2"/>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-741.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-724.8" font-family="Courier,monospace" font-size="14.00">compute_data_bounds()</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-708" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render&#45;&gt;plot2d/figure.hpp::::compute_data_bounds -->
+<g id="edge2" class="edge">
+<title>plot2d/figure.hpp::::render-&gt;plot2d/figure.hpp::::compute_data_bounds</title>
+<path fill="none" stroke="black" d="M196.11,-955.39C225.08,-951.93 261.39,-942.71 284.04,-919 332,-868.8 273.32,-818.35 320.04,-767 322.31,-764.51 324.74,-762.18 327.32,-760"/>
+<polygon fill="black" stroke="black" points="329.38,-762.83 335.35,-754.08 325.22,-757.2 329.38,-762.83"/>
+</g>
+<!-- plot2d/figure.hpp::::setup_transform -->
+<g id="node19" class="node">
+<title>plot2d/figure.hpp::::setup_transform</title>
+<polygon fill="#f5f5f5" stroke="black" points="512.47,-834.2 353.65,-834.2 353.65,-775.8 512.47,-775.8 512.47,-834.2"/>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-817.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-800.8" font-family="Courier,monospace" font-size="14.00">setup_transform()</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-784" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render&#45;&gt;plot2d/figure.hpp::::setup_transform -->
+<g id="edge3" class="edge">
+<title>plot2d/figure.hpp::::render-&gt;plot2d/figure.hpp::::setup_transform</title>
+<path fill="none" stroke="black" d="M196.13,-953.52C224.2,-949.25 259.49,-939.82 284.04,-919 312.55,-894.83 292.13,-867.86 320.04,-843 326.85,-836.93 334.68,-831.82 342.95,-827.53"/>
+<polygon fill="black" stroke="black" points="344.32,-830.75 351.87,-823.32 341.33,-824.42 344.32,-830.75"/>
+</g>
+<!-- plot2d/figure.hpp::::render_grid -->
+<g id="node20" class="node">
+<title>plot2d/figure.hpp::::render_grid</title>
+<polygon fill="#f5f5f5" stroke="black" points="495.67,-1214.2 370.45,-1214.2 370.45,-1155.8 495.67,-1155.8 495.67,-1214.2"/>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-1197.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-1180.8" font-family="Courier,monospace" font-size="14.00">render_grid()</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-1164" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render&#45;&gt;plot2d/figure.hpp::::render_grid -->
+<g id="edge4" class="edge">
+<title>plot2d/figure.hpp::::render-&gt;plot2d/figure.hpp::::render_grid</title>
+<path fill="none" stroke="black" d="M196.11,-958.61C225.08,-962.07 261.39,-971.29 284.04,-995 332,-1045.2 273.32,-1095.65 320.04,-1147 330.55,-1158.55 344.7,-1166.59 359.4,-1172.19"/>
+<polygon fill="black" stroke="black" points="358.13,-1175.46 368.72,-1175.36 360.38,-1168.83 358.13,-1175.46"/>
+</g>
+<!-- plot2d/figure.hpp::::render_axes -->
+<g id="node21" class="node">
+<title>plot2d/figure.hpp::::render_axes</title>
+<polygon fill="#f5f5f5" stroke="black" points="495.67,-1138.2 370.45,-1138.2 370.45,-1079.8 495.67,-1079.8 495.67,-1138.2"/>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-1121.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-1104.8" font-family="Courier,monospace" font-size="14.00">render_axes()</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-1088" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render&#45;&gt;plot2d/figure.hpp::::render_axes -->
+<g id="edge5" class="edge">
+<title>plot2d/figure.hpp::::render-&gt;plot2d/figure.hpp::::render_axes</title>
+<path fill="none" stroke="black" d="M196.13,-960.48C224.2,-964.75 259.49,-974.18 284.04,-995 312.55,-1019.17 292.13,-1046.14 320.04,-1071 331.22,-1080.96 345.12,-1088.33 359.28,-1093.78"/>
+<polygon fill="black" stroke="black" points="358.1,-1097.07 368.69,-1097.08 360.41,-1090.46 358.1,-1097.07"/>
+</g>
+<!-- plot2d/figure.hpp::::render_data -->
+<g id="node22" class="node">
+<title>plot2d/figure.hpp::::render_data</title>
+<polygon fill="#f5f5f5" stroke="black" points="495.67,-1062.2 370.45,-1062.2 370.45,-1003.8 495.67,-1003.8 495.67,-1062.2"/>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-1045.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-1028.8" font-family="Courier,monospace" font-size="14.00">render_data()</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-1012" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render&#45;&gt;plot2d/figure.hpp::::render_data -->
+<g id="edge6" class="edge">
+<title>plot2d/figure.hpp::::render-&gt;plot2d/figure.hpp::::render_data</title>
+<path fill="none" stroke="black" d="M196.17,-969.21C240.05,-981.07 307.4,-999.29 358.92,-1013.22"/>
+<polygon fill="black" stroke="black" points="357.97,-1016.59 368.53,-1015.82 359.79,-1009.83 357.97,-1016.59"/>
+</g>
+<!-- plot2d/figure.hpp::::render_legend -->
+<g id="node23" class="node">
+<title>plot2d/figure.hpp::::render_legend</title>
+<polygon fill="#f5f5f5" stroke="black" points="504.07,-910.2 362.05,-910.2 362.05,-851.8 504.07,-851.8 504.07,-910.2"/>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-893.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-876.8" font-family="Courier,monospace" font-size="14.00">render_legend()</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-860" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render&#45;&gt;plot2d/figure.hpp::::render_legend -->
+<g id="edge7" class="edge">
+<title>plot2d/figure.hpp::::render-&gt;plot2d/figure.hpp::::render_legend</title>
+<path fill="none" stroke="black" d="M196.17,-944.79C237.81,-933.53 300.58,-916.55 350.91,-902.94"/>
+<polygon fill="black" stroke="black" points="351.57,-906.39 360.31,-900.4 349.75,-899.63 351.57,-906.39"/>
+</g>
+<!-- plot2d/figure.hpp::::render_title_and_labels -->
+<g id="node24" class="node">
+<title>plot2d/figure.hpp::::render_title_and_labels</title>
+<polygon fill="#f5f5f5" stroke="black" points="546.08,-986.2 320.04,-986.2 320.04,-927.8 546.08,-927.8 546.08,-986.2"/>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-969.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-952.8" font-family="Courier,monospace" font-size="14.00">render_title_and_labels()</text>
+<text xml:space="preserve" text-anchor="middle" x="433.06" y="-936" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render&#45;&gt;plot2d/figure.hpp::::render_title_and_labels -->
+<g id="edge8" class="edge">
+<title>plot2d/figure.hpp::::render-&gt;plot2d/figure.hpp::::render_title_and_labels</title>
+<path fill="none" stroke="black" d="M196.17,-957C226.6,-957 268.33,-957 308.23,-957"/>
+<polygon fill="black" stroke="black" points="308.19,-960.5 318.19,-957 308.19,-953.5 308.19,-960.5"/>
+</g>
+<!-- plot2d/figure.hpp::::canvas -->
+<g id="node14" class="node">
+<title>plot2d/figure.hpp::::canvas</title>
+<polygon fill="#f5f5f5" stroke="black" points="263.04,-1062.2 37,-1062.2 37,-1003.8 263.04,-1003.8 263.04,-1062.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-1045.6" font-family="Courier,monospace" font-size="14.00">const rendering::Canvas &amp;</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-1028.8" font-family="Courier,monospace" font-size="14.00">canvas()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-1012" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::entries -->
+<g id="node15" class="node">
+<title>plot2d/figure.hpp::::entries</title>
+<polygon fill="#f5f5f5" stroke="black" points="284.04,-1138.2 16,-1138.2 16,-1079.8 284.04,-1079.8 284.04,-1138.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-1121.6" font-family="Courier,monospace" font-size="14.00">const std::vector&lt;PlotEntry&gt; &amp;</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-1104.8" font-family="Courier,monospace" font-size="14.00">entries()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-1088" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- plot2d/figure.hpp::::add_entry -->
+<g id="node16" class="node">
+<title>plot2d/figure.hpp::::add_entry</title>
+<polygon fill="#f5f5f5" stroke="black" points="204.23,-1214.2 95.81,-1214.2 95.81,-1155.8 204.23,-1155.8 204.23,-1214.2"/>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-1197.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-1180.8" font-family="Courier,monospace" font-size="14.00">add_entry()</text>
+<text xml:space="preserve" text-anchor="middle" x="150.02" y="-1164" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- rendering/tick_engine.hpp::::compute -->
+<g id="node34" class="node">
+<title>rendering/tick_engine.hpp::::compute</title>
+<polygon fill="#f5f5f5" stroke="black" points="761.9,-1321.2 603.08,-1321.2 603.08,-1262.8 761.9,-1262.8 761.9,-1321.2"/>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1304.6" font-family="Courier,monospace" font-size="14.00">std::vector&lt;Tick&gt;</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1287.8" font-family="Courier,monospace" font-size="14.00">compute()</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1271" font-family="Courier,monospace" font-size="14.00">called: 4</text>
+</g>
+<!-- plot2d/figure.hpp::::render_grid&#45;&gt;rendering/tick_engine.hpp::::compute -->
+<g id="edge9" class="edge">
+<title>plot2d/figure.hpp::::render_grid-&gt;rendering/tick_engine.hpp::::compute</title>
+<path fill="none" stroke="black" d="M494.25,-1214.6C518.82,-1226.36 547.62,-1239.73 574.08,-1251 579.96,-1253.5 586.05,-1256.02 592.21,-1258.52"/>
+<polygon fill="black" stroke="black" points="590.62,-1261.65 601.2,-1262.11 593.22,-1255.15 590.62,-1261.65"/>
+</g>
+<!-- rendering/text.hpp::::draw_text -->
+<g id="node28" class="node">
+<title>rendering/text.hpp::::draw_text</title>
+<polygon fill="#f5f5f5" stroke="black" points="736.7,-1062.2 628.28,-1062.2 628.28,-1003.8 736.7,-1003.8 736.7,-1062.2"/>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1045.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1028.8" font-family="Courier,monospace" font-size="14.00">draw_text()</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1012" font-family="Courier,monospace" font-size="14.00">called: 5</text>
+</g>
+<!-- plot2d/figure.hpp::::render_axes&#45;&gt;rendering/text.hpp::::draw_text -->
+<g id="edge12" class="edge">
+<title>plot2d/figure.hpp::::render_axes-&gt;rendering/text.hpp::::draw_text</title>
+<path fill="none" stroke="black" d="M495.86,-1090.02C532.86,-1078.65 579.81,-1064.23 617.24,-1052.74"/>
+<polygon fill="black" stroke="black" points="618.05,-1056.15 626.58,-1049.87 615.99,-1049.46 618.05,-1056.15"/>
+</g>
+<!-- rendering/text.hpp::::text_width -->
+<g id="node30" class="node">
+<title>rendering/text.hpp::::text_width</title>
+<polygon fill="#f5f5f5" stroke="black" points="740.9,-910.2 624.08,-910.2 624.08,-851.8 740.9,-851.8 740.9,-910.2"/>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-893.6" font-family="Courier,monospace" font-size="14.00">i32</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-876.8" font-family="Courier,monospace" font-size="14.00">text_width()</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-860" font-family="Courier,monospace" font-size="14.00">called: 5</text>
+</g>
+<!-- plot2d/figure.hpp::::render_axes&#45;&gt;rendering/text.hpp::::text_width -->
+<g id="edge11" class="edge">
+<title>plot2d/figure.hpp::::render_axes-&gt;rendering/text.hpp::::text_width</title>
+<path fill="none" stroke="black" d="M495.93,-1102.99C517.36,-1097.78 539.62,-1088.25 554.08,-1071 597.84,-1018.78 531.19,-971.95 574.08,-919 583.99,-906.75 598.14,-898.45 612.92,-892.82"/>
+<polygon fill="black" stroke="black" points="613.96,-896.17 622.32,-889.66 611.72,-889.53 613.96,-896.17"/>
+</g>
+<!-- plot2d/figure.hpp::::render_axes&#45;&gt;rendering/tick_engine.hpp::::compute -->
+<g id="edge10" class="edge">
+<title>plot2d/figure.hpp::::render_axes-&gt;rendering/tick_engine.hpp::::compute</title>
+<path fill="none" stroke="black" d="M496.01,-1115.63C517.19,-1120.93 539.26,-1130.34 554.08,-1147 585.36,-1182.17 543.82,-1214.94 574.08,-1251 579.41,-1257.36 585.85,-1262.74 592.89,-1267.28"/>
+<polygon fill="black" stroke="black" points="591.09,-1270.28 601.5,-1272.22 594.57,-1264.21 591.09,-1270.28"/>
+</g>
+<!-- plot2d/figure.hpp::::render_legend&#45;&gt;rendering/text.hpp::::draw_text -->
+<g id="edge15" class="edge">
+<title>plot2d/figure.hpp::::render_legend-&gt;rendering/text.hpp::::draw_text</title>
+<path fill="none" stroke="black" d="M504.46,-890.71C522.7,-896.33 540.89,-905.15 554.08,-919 578.16,-944.3 550.42,-969.3 574.08,-995 585.45,-1007.36 601.1,-1015.7 616.93,-1021.33"/>
+<polygon fill="black" stroke="black" points="615.83,-1024.65 626.43,-1024.35 617.96,-1017.98 615.83,-1024.65"/>
+</g>
+<!-- plot2d/figure.hpp::::render_legend&#45;&gt;rendering/text.hpp::::text_width -->
+<g id="edge14" class="edge">
+<title>plot2d/figure.hpp::::render_legend-&gt;rendering/text.hpp::::text_width</title>
+<path fill="none" stroke="black" d="M504.3,-881C538.19,-881 578.7,-881 612.44,-881"/>
+<polygon fill="black" stroke="black" points="612.08,-884.5 622.08,-881 612.08,-877.5 612.08,-884.5"/>
+</g>
+<!-- rendering/text.hpp::::text_height -->
+<g id="node31" class="node">
+<title>rendering/text.hpp::::text_height</title>
+<polygon fill="#f5f5f5" stroke="black" points="745.1,-834.2 619.88,-834.2 619.88,-775.8 745.1,-775.8 745.1,-834.2"/>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-817.6" font-family="Courier,monospace" font-size="14.00">i32</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-800.8" font-family="Courier,monospace" font-size="14.00">text_height()</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-784" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render_legend&#45;&gt;rendering/text.hpp::::text_height -->
+<g id="edge13" class="edge">
+<title>plot2d/figure.hpp::::render_legend-&gt;rendering/text.hpp::::text_height</title>
+<path fill="none" stroke="black" d="M504.3,-859.42C536.9,-849.41 575.64,-837.51 608.57,-827.4"/>
+<polygon fill="black" stroke="black" points="609.52,-830.77 618.05,-824.48 607.47,-824.08 609.52,-830.77"/>
+</g>
+<!-- plot2d/figure.hpp::::render_title_and_labels&#45;&gt;rendering/text.hpp::::draw_text -->
+<g id="edge17" class="edge">
+<title>plot2d/figure.hpp::::render_title_and_labels-&gt;rendering/text.hpp::::draw_text</title>
+<path fill="none" stroke="black" d="M530.43,-986.6C559.4,-995.5 590.48,-1005.04 616.87,-1013.15"/>
+<polygon fill="black" stroke="black" points="615.83,-1016.49 626.42,-1016.09 617.89,-1009.8 615.83,-1016.49"/>
+</g>
+<!-- rendering/text.hpp::::draw_text_vertical -->
+<g id="node29" class="node">
+<title>rendering/text.hpp::::draw_text_vertical</title>
+<polygon fill="#f5f5f5" stroke="black" points="774.5,-986.2 590.48,-986.2 590.48,-927.8 774.5,-927.8 774.5,-986.2"/>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-969.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-952.8" font-family="Courier,monospace" font-size="14.00">draw_text_vertical()</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-936" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render_title_and_labels&#45;&gt;rendering/text.hpp::::draw_text_vertical -->
+<g id="edge19" class="edge">
+<title>plot2d/figure.hpp::::render_title_and_labels-&gt;rendering/text.hpp::::draw_text_vertical</title>
+<path fill="none" stroke="black" d="M546.55,-957C557.24,-957 568.04,-957 578.63,-957"/>
+<polygon fill="black" stroke="black" points="578.51,-960.5 588.51,-957 578.51,-953.5 578.51,-960.5"/>
+</g>
+<!-- plot2d/figure.hpp::::render_title_and_labels&#45;&gt;rendering/text.hpp::::text_width -->
+<g id="edge16" class="edge">
+<title>plot2d/figure.hpp::::render_title_and_labels-&gt;rendering/text.hpp::::text_width</title>
+<path fill="none" stroke="black" d="M530.43,-927.4C557.98,-918.94 587.43,-909.89 612.94,-902.06"/>
+<polygon fill="black" stroke="black" points="613.64,-905.5 622.17,-899.22 611.58,-898.81 613.64,-905.5"/>
+</g>
+<!-- rendering/text.hpp::::text_height_vertical -->
+<g id="node33" class="node">
+<title>rendering/text.hpp::::text_height_vertical</title>
+<polygon fill="#f5f5f5" stroke="black" points="782.91,-1214.2 582.08,-1214.2 582.08,-1155.8 782.91,-1155.8 782.91,-1214.2"/>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1197.6" font-family="Courier,monospace" font-size="14.00">i32</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1180.8" font-family="Courier,monospace" font-size="14.00">text_height_vertical()</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1164" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- plot2d/figure.hpp::::render_title_and_labels&#45;&gt;rendering/text.hpp::::text_height_vertical -->
+<g id="edge18" class="edge">
+<title>plot2d/figure.hpp::::render_title_and_labels-&gt;rendering/text.hpp::::text_height_vertical</title>
+<path fill="none" stroke="black" d="M545.83,-986.64C548.78,-989.21 551.55,-991.98 554.08,-995 597.84,-1047.22 531.19,-1094.05 574.08,-1147 574.15,-1147.1 574.23,-1147.19 574.31,-1147.29"/>
+<polygon fill="black" stroke="black" points="571.75,-1149.68 581.23,-1154.41 576.77,-1144.8 571.75,-1149.68"/>
+</g>
+<!-- rendering/text.hpp::::get_glyph -->
+<g id="node25" class="node">
+<title>rendering/text.hpp::::get_glyph</title>
+<polygon fill="#f5f5f5" stroke="black" points="960.93,-1024.2 835.71,-1024.2 835.71,-965.8 960.93,-965.8 960.93,-1024.2"/>
+<text xml:space="preserve" text-anchor="middle" x="898.32" y="-1007.6" font-family="Courier,monospace" font-size="14.00">const Glyph &amp;</text>
+<text xml:space="preserve" text-anchor="middle" x="898.32" y="-990.8" font-family="Courier,monospace" font-size="14.00">get_glyph()</text>
+<text xml:space="preserve" text-anchor="middle" x="898.32" y="-974" font-family="Courier,monospace" font-size="14.00">called: 2</text>
+</g>
+<!-- rendering/text.hpp::::__anon0566b84d0102 -->
+<g id="node26" class="node">
+<title>rendering/text.hpp::::__anon0566b84d0102</title>
+<polygon fill="#f5f5f5" stroke="black" points="774.5,-682.2 590.48,-682.2 590.48,-623.8 774.5,-623.8 774.5,-682.2"/>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-665.6" font-family="Courier,monospace" font-size="14.00">bool</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-648.8" font-family="Courier,monospace" font-size="14.00">__anon0566b84d0102()</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-632" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- rendering/text.hpp::::__anon0566b84d0202 -->
+<g id="node27" class="node">
+<title>rendering/text.hpp::::__anon0566b84d0202</title>
+<polygon fill="#f5f5f5" stroke="black" points="774.5,-758.2 590.48,-758.2 590.48,-699.8 774.5,-699.8 774.5,-758.2"/>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-741.6" font-family="Courier,monospace" font-size="14.00">void</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-724.8" font-family="Courier,monospace" font-size="14.00">__anon0566b84d0202()</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-708" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- rendering/text.hpp::::draw_text&#45;&gt;rendering/text.hpp::::get_glyph -->
+<g id="edge20" class="edge">
+<title>rendering/text.hpp::::draw_text-&gt;rendering/text.hpp::::get_glyph</title>
+<path fill="none" stroke="black" d="M737.17,-1023.46C763.49,-1018.78 795.59,-1013.08 824.12,-1008.01"/>
+<polygon fill="black" stroke="black" points="824.55,-1011.49 833.78,-1006.29 823.32,-1004.59 824.55,-1011.49"/>
+</g>
+<!-- rendering/text.hpp::::draw_text_vertical&#45;&gt;rendering/text.hpp::::get_glyph -->
+<g id="edge21" class="edge">
+<title>rendering/text.hpp::::draw_text_vertical-&gt;rendering/text.hpp::::get_glyph</title>
+<path fill="none" stroke="black" d="M774.79,-973.23C791.23,-976.15 808.18,-979.16 824.03,-981.98"/>
+<polygon fill="black" stroke="black" points="823.4,-985.42 833.86,-983.72 824.62,-978.53 823.4,-985.42"/>
+</g>
+<!-- rendering/text.hpp::::text_width_vertical -->
+<g id="node32" class="node">
+<title>rendering/text.hpp::::text_width_vertical</title>
+<polygon fill="#f5f5f5" stroke="black" points="778.7,-1138.2 586.28,-1138.2 586.28,-1079.8 778.7,-1079.8 778.7,-1138.2"/>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1121.6" font-family="Courier,monospace" font-size="14.00">i32</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1104.8" font-family="Courier,monospace" font-size="14.00">text_width_vertical()</text>
+<text xml:space="preserve" text-anchor="middle" x="682.49" y="-1088" font-family="Courier,monospace" font-size="14.00">called: 0</text>
+</g>
+<!-- rendering/tick_engine.hpp::::compute_linear -->
+<g id="node35" class="node">
+<title>rendering/tick_engine.hpp::::compute_linear</title>
+<polygon fill="#f5f5f5" stroke="black" points="977.73,-1321.2 818.91,-1321.2 818.91,-1262.8 977.73,-1262.8 977.73,-1321.2"/>
+<text xml:space="preserve" text-anchor="middle" x="898.32" y="-1304.6" font-family="Courier,monospace" font-size="14.00">std::vector&lt;Tick&gt;</text>
+<text xml:space="preserve" text-anchor="middle" x="898.32" y="-1287.8" font-family="Courier,monospace" font-size="14.00">compute_linear()</text>
+<text xml:space="preserve" text-anchor="middle" x="898.32" y="-1271" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- rendering/tick_engine.hpp::::compute&#45;&gt;rendering/tick_engine.hpp::::compute_linear -->
+<g id="edge23" class="edge">
+<title>rendering/tick_engine.hpp::::compute-&gt;rendering/tick_engine.hpp::::compute_linear</title>
+<path fill="none" stroke="black" d="M762.2,-1292C776.81,-1292 792.18,-1292 807.11,-1292"/>
+<polygon fill="black" stroke="black" points="806.9,-1295.5 816.9,-1292 806.9,-1288.5 806.9,-1295.5"/>
+</g>
+<!-- rendering/tick_engine.hpp::::compute_log -->
+<g id="node36" class="node">
+<title>rendering/tick_engine.hpp::::compute_log</title>
+<polygon fill="#f5f5f5" stroke="black" points="977.73,-1397.2 818.91,-1397.2 818.91,-1338.8 977.73,-1338.8 977.73,-1397.2"/>
+<text xml:space="preserve" text-anchor="middle" x="898.32" y="-1380.6" font-family="Courier,monospace" font-size="14.00">std::vector&lt;Tick&gt;</text>
+<text xml:space="preserve" text-anchor="middle" x="898.32" y="-1363.8" font-family="Courier,monospace" font-size="14.00">compute_log()</text>
+<text xml:space="preserve" text-anchor="middle" x="898.32" y="-1347" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- rendering/tick_engine.hpp::::compute&#45;&gt;rendering/tick_engine.hpp::::compute_log -->
+<g id="edge22" class="edge">
+<title>rendering/tick_engine.hpp::::compute-&gt;rendering/tick_engine.hpp::::compute_log</title>
+<path fill="none" stroke="black" d="M762.2,-1319.98C777.1,-1325.27 792.79,-1330.85 807.99,-1336.25"/>
+<polygon fill="black" stroke="black" points="806.4,-1339.4 816.99,-1339.45 808.74,-1332.8 806.4,-1339.4"/>
+</g>
+<!-- rendering/tick_engine.hpp::::format_value -->
+<g id="node37" class="node">
+<title>rendering/tick_engine.hpp::::format_value</title>
+<polygon fill="#f5f5f5" stroke="black" points="1164.15,-1321.2 1030.53,-1321.2 1030.53,-1262.8 1164.15,-1262.8 1164.15,-1321.2"/>
+<text xml:space="preserve" text-anchor="middle" x="1097.34" y="-1304.6" font-family="Courier,monospace" font-size="14.00">std::string</text>
+<text xml:space="preserve" text-anchor="middle" x="1097.34" y="-1287.8" font-family="Courier,monospace" font-size="14.00">format_value()</text>
+<text xml:space="preserve" text-anchor="middle" x="1097.34" y="-1271" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- rendering/tick_engine.hpp::::compute_linear&#45;&gt;rendering/tick_engine.hpp::::format_value -->
+<g id="edge24" class="edge">
+<title>rendering/tick_engine.hpp::::compute_linear-&gt;rendering/tick_engine.hpp::::format_value</title>
+<path fill="none" stroke="black" d="M978.04,-1292C991.52,-1292 1005.52,-1292 1018.96,-1292"/>
+<polygon fill="black" stroke="black" points="1018.59,-1295.5 1028.59,-1292 1018.59,-1288.5 1018.59,-1295.5"/>
+</g>
+<!-- rendering/tick_engine.hpp::::format_log_value -->
+<g id="node38" class="node">
+<title>rendering/tick_engine.hpp::::format_log_value</title>
+<polygon fill="#f5f5f5" stroke="black" points="1180.95,-1397.2 1013.73,-1397.2 1013.73,-1338.8 1180.95,-1338.8 1180.95,-1397.2"/>
+<text xml:space="preserve" text-anchor="middle" x="1097.34" y="-1380.6" font-family="Courier,monospace" font-size="14.00">std::string</text>
+<text xml:space="preserve" text-anchor="middle" x="1097.34" y="-1363.8" font-family="Courier,monospace" font-size="14.00">format_log_value()</text>
+<text xml:space="preserve" text-anchor="middle" x="1097.34" y="-1347" font-family="Courier,monospace" font-size="14.00">called: 1</text>
+</g>
+<!-- rendering/tick_engine.hpp::::compute_log&#45;&gt;rendering/tick_engine.hpp::::format_log_value -->
+<g id="edge25" class="edge">
+<title>rendering/tick_engine.hpp::::compute_log-&gt;rendering/tick_engine.hpp::::format_log_value</title>
+<path fill="none" stroke="black" d="M978.04,-1368C985.9,-1368 993.95,-1368 1001.95,-1368"/>
+<polygon fill="black" stroke="black" points="1001.72,-1371.5 1011.72,-1368 1001.72,-1364.5 1001.72,-1371.5"/>
+</g>
+</g>
+</svg>
