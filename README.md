@@ -1,6 +1,6 @@
 # Bash as Shortcuts
 
-A dump for bash commands and scripts I find useful. Each subdirectory is a standalone tool with its own README.
+An holder for bash commands and scripts I find useful. Each subdirectory is a standalone tool with its own README.
 
 | Repo | tldr | README |
 |---|---|---|
