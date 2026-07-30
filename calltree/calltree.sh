@@ -1,37 +1,31 @@
 #!/usr/bin/env bash
-# calltree.sh - ASCII/Mermaid/DOT call graph, multi-language static analysis.
-# ~25 languages via universal-ctags, dispatched automatically by extension.
-# Run -h for full usage/options; README.md has examples.
+# calltree.sh - call graph (ASCII/Mermaid/DOT), ~25 languages via ctags.
+# -h for usage, README.md for examples.
 #
-# Pipeline: ctags (JSON tags) -> perl backend (call graph) -> bash (render).
-# Multi-file keys are "filepath::::funcname"; cross-file calls prefer the
-# same-file definition, else the first file (input order) that defines it.
+# pipeline: ctags (json tags) -> perl (build call graph) -> bash (render)
+# keys: "filepath::::funcname"; cross-file call resolves to same-file def
+# first, else first input file that defines it.
 #
-# Limitations: name-in-body scan, not semantic analysis (overloaded names
-# collapse to first definition); method calls (obj.foo/ptr->foo) excluded;
-# generics collapse to base name; macros not detected; file extension must
-# match content; paths can't contain "::::" (internal key separator).
+# limits: regex scan, not semantic - overloads collapse to first def,
+# method calls (obj.foo/ptr->foo) excluded, generics collapse to base name,
+# macros not seen, extension must match content, paths can't contain "::::"
 #
-# Deps: bash >= 4.0, perl (JSON::PP, core since 5.14),
-# universal-ctags with +json (not exuberant-ctags), graphviz (optional).
+# deps: bash>=4, perl (JSON::PP, core since 5.14), universal-ctags +json,
+# graphviz (optional, for rendering .dot)
 set -euo pipefail
 
 readonly _VERSION="2.2.0"
 readonly _SEP="::::"
 readonly _AUTO="__AUTO__"
 
-# =============================================================================
-# Internal key helpers | keys are filepath::::funcname
-# =============================================================================
+# -- Internal key helpers | keys are filepath::::funcname
 _kfile() { printf '%s' "${1%%${_SEP}*}"; }
 _kfunc() { printf '%s' "${1##*${_SEP}}"; }
 _kbase() { local _f; _f=$(_kfile "$1"); printf '%s' "${_f##*/}"; }
 
 _ts_ms() { perl -MTime::HiRes=time -e 'printf "%d\n", time()*1000'; }
 
-# Sanitize a string for use as a Mermaid node ID.
-# Replaces any character that is not alphanumeric with an underscore.
-# This handles C++ destructors (~Foo), operators, and other special names.
+# mermaid node id: non-alnum -> '_' (handles ~dtor, operators, etc)
 _mmd_id() { printf '%s' "$1" | tr -c 'A-Za-z0-9' '_'; }
 
 _realpath() {
@@ -47,9 +41,7 @@ _realpath() {
   fi
 }
 
-# =============================================================================
-# Defaults
-# =============================================================================
+# -- Defaults
 _MAX_DEPTH=4
 _ROOT_FUNC=""
 _USE_COLOR=0
@@ -67,7 +59,12 @@ _usage() {
 calltree.sh v${_VERSION} - multi-language call tree (ctags + perl)
 
 USAGE
-  calltree.sh PATH [PATH ...] [OPTIONS]
+  calltree.sh FUNC PATH [PATH ...] [OPTIONS]
+
+  FUNC is required: bare function name, or 'file::::func' key to pin a
+  specific file. Output is scoped to FUNC's reachable subgraph (root
+  highlighted in Mermaid/DOT). Pass "" for FUNC to skip scoping and map
+  every root in the analyzed set instead.
 
   PATH may be a file or a directory. Multiple paths are accepted. Directories
   are scanned recursively for known source extensions.
@@ -76,7 +73,6 @@ OPTIONS
   -I PATTERN      include glob, basename match (repeatable, applied first)
   -E PATTERN      exclude glob, basename match (repeatable, applied last)
 
-  -f FUNC         start tree from FUNC (bare name or 'file::::func' key)
   -d N            max recursion depth (default: 4)
 
   -out-T [FILE]   write plain text  (default: <base>.txt)
@@ -129,25 +125,22 @@ DEPS
   graphviz (optional, only for rendering .dot to svg/png)
 
 EXAMPLES
-  calltree.sh src/main.cpp -c
-  calltree.sh src/                                  # scan a directory
-  calltree.sh src/ include/ -d 5 -p                 # multi-dir + depth + perf
-  calltree.sh src/ -I '*.cpp' -E 'test_*' -out-D    # filtered DOT export
-  calltree.sh src/ -f dispatch -out-M -out-D -c     # rooted Mermaid + DOT
-  calltree.sh a.py b.py c.py -out-T graph.txt       # multi-file text export
-  calltree.sh src/ -t -out-T -out-M -out-D          # silent run, files only
-  calltree.sh src/ -out-M -bg-d                 # Mermaid with dark theme
-  calltree.sh src/ -out-D -bg-w                 # DOT with light theme
-  calltree.sh -- -weird-file.cpp                    # path starting with dash
+  calltree.sh main src/main.cpp -c
+  calltree.sh "" src/                               # no FUNC: map every root
+  calltree.sh "" src/ include/ -d 5 -p              # multi-dir + depth + perf
+  calltree.sh "" src/ -I '*.cpp' -E 'test_*' -out-D # filtered DOT export
+  calltree.sh dispatch src/ -out-M -out-D -c        # rooted Mermaid + DOT
+  calltree.sh "" a.py b.py c.py -out-T graph.txt    # multi-file text export
+  calltree.sh "" src/ -t -out-T -out-M -out-D       # silent run, files only
+  calltree.sh "" src/ -out-M -bg-d                  # Mermaid with dark theme
+  calltree.sh "" src/ -out-D -bg-w                  # DOT with light theme
+  calltree.sh myfunc -- -weird-file.cpp             # path starting with dash
 EOF
 }
 
-# =============================================================================
-# Argument parser
-# =============================================================================
-# A trailing optional FILE for -out-* is detected only if it ends with the
-# matching extension (.txt / .mmd / .dot). This avoids grabbing the next
-# positional path when the user wants the auto-derived filename.
+# -- Argument parser
+# optional FILE after -out-* only claimed if it has the matching ext,
+# else it's left as the next positional path (auto filename is used)
 _peek_ext() {  # _peek_ext <next_token> <expected_ext>
   [[ ${1+x} == x ]] || return 1
   [[ -n "${1-}" ]]   || return 1
@@ -166,7 +159,6 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     -I)  _need_arg "$1" "$#"; _INC_PATS+=("$2"); shift 2 ;;
     -E)  _need_arg "$1" "$#"; _EXC_PATS+=("$2"); shift 2 ;;
-    -f)  _need_arg "$1" "$#"; _ROOT_FUNC="$2";   shift 2 ;;
     -d)  _need_arg "$1" "$#"; _MAX_DEPTH="$2";   shift 2 ;;
 
     -out-T) shift; if _peek_ext "${1-}" txt; then _OUT_TXT=$1; shift; else _OUT_TXT=$_AUTO; fi ;;
@@ -193,6 +185,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# First positional token is FUNC (required; "" means no scoping, map every
+# root). Remaining positionals are PATHs.
+[[ ${#_POSITIONAL[@]} -eq 0 ]] && { _usage; exit 1; }
+_ROOT_FUNC="${_POSITIONAL[0]}"
+_POSITIONAL=("${_POSITIONAL[@]:1}")
+
 # Classify positional args into files and directories
 for _ARG in "${_POSITIONAL[@]+"${_POSITIONAL[@]}"}"; do
   if   [[ -d "$_ARG" ]]; then _SCAN_DIRS+=("$_ARG")
@@ -203,9 +201,7 @@ for _ARG in "${_POSITIONAL[@]+"${_POSITIONAL[@]}"}"; do
   fi
 done
 
-# =============================================================================
-# Dependency check
-# =============================================================================
+# -- Dependency check
 _check_ctags() {
   if ! command -v ctags >/dev/null 2>&1; then
     cat >&2 <<EOF
@@ -230,9 +226,7 @@ EOF
 }
 _check_ctags
 
-# =============================================================================
-# Collect files from directory scans (apply -I/-E filters)
-# =============================================================================
+# -- Collect files from directory scans (apply -I/-E filters)
 for _DIR in "${_SCAN_DIRS[@]+"${_SCAN_DIRS[@]}"}"; do
   while IFS= read -r -d '' _F; do
     _BN="${_F##*/}"
@@ -270,9 +264,7 @@ for _F in "${_INPUT_FILES[@]}"; do
   [[ -f "$_F" ]] || { printf 'ERROR: file not found: %s\n' "$_F" >&2; exit 1; }
 done
 
-# =============================================================================
-# Mode + title + default output base
-# =============================================================================
+# -- Mode + title + default output base
 if [[ ${#_INPUT_FILES[@]} -eq 1 ]]; then
   _MULTI=0
   _TITLE="${_INPUT_FILES[0]}"
@@ -291,9 +283,7 @@ fi
 [[ "$_OUT_MMD" == "$_AUTO" ]] && _OUT_MMD="${_BASE}.mmd"
 [[ "$_OUT_DOT" == "$_AUTO" ]] && _OUT_DOT="${_BASE}.dot"
 
-# =============================================================================
-# Run ctags + perl backend
-# =============================================================================
+# -- Run ctags + perl backend
 _T_START=$(_ts_ms)
 _TAGS_TMP=$(mktemp)
 trap 'rm -f "$_TAGS_TMP"' EXIT
@@ -319,11 +309,10 @@ my $tags_file = shift @ARGV;
 open my $tfh, '<', $tags_file or die "cannot open $tags_file: $!\n";
 my $json = JSON::PP->new->utf8(0);
 
-# Per-language kind allow-list. ctags uses different kind names per language;
-# this table picks the ones that represent actual callable function defs.
+# per-language ctags kind allow-list: which kinds count as a callable def
 my %ok_kinds_per_lang = (
     'C'          => { function => 1 },
-    'C++'        => { function => 1 },
+    'C++'        => { function => 1, class => 1, struct => 1 },
     'C#'         => { method => 1 },
     'Python'     => { function => 1, member => 1 },     # member = class method
     'Go'         => { func => 1 },
@@ -346,7 +335,15 @@ my %default_ok = (
     function => 1, method => 1, func => 1, fn => 1, subroutine => 1,
 );
 
-# ---- Pass A: read all tags from JSON ---------------------------------------
+# langs with angle-bracket generics: name<...>( is a call, not a compare
+my %generic_langs = map { $_ => 1 }
+    ('C++', 'C#', 'Java', 'TypeScript', 'Rust', 'Kotlin', 'Scala', 'Swift');
+
+# type kinds: graph nodes for factory->product edges, bodies not scanned
+# (a class span would absorb its members' calls otherwise)
+my %type_kinds = (class => 1, struct => 1);
+
+# -- pass A: read tags from JSON
 my @raw_tags;
 while (my $line = <$tfh>) {
     chomp $line;
@@ -357,8 +354,8 @@ while (my $line = <$tfh>) {
 }
 close $tfh;
 
-# ---- Pass B: filter, group by file, dedupe ---------------------------------
-my (%file_defs, %func_to_files, %rtype, %lang_of, %seen_def);
+# -- pass B: filter, group by file, dedupe
+my (%file_defs, %func_to_files, %rtype, %lang_of, %seen_def, %is_type);
 
 for my $t (@raw_tags) {
     my $name = $t->{name};
@@ -367,8 +364,7 @@ for my $t (@raw_tags) {
     my $lang = $t->{language} // '';
     next unless defined $name && defined $file && $name ne '' && $file ne '';
 
-    # ctags fabricates names like __anon0566b84d0102 for unnamed entities
-    # (lambdas, anonymous structs/unions). Drop them.
+    # drop ctags-fabricated names for anon entities (lambdas, anon struct/union)
     next if $name =~ /^__anon\w*$/;
 
     my $allow = $ok_kinds_per_lang{$lang} // \%default_ok;
@@ -384,8 +380,7 @@ for my $t (@raw_tags) {
     my $tref = $t->{typeref} // '';
     $tref =~ s/^typename:\s*//;
     $tref =~ s/^\s+|\s+$//g;
-    # Languages like Rust embed the return type inside the signature as
-    # "(args) -> Type". Pull it out when typeref is missing.
+    # rust etc embed return type in signature "(args) -> Type"; use if no typeref
     if ($tref eq '') {
         my $sig = $t->{signature} // '';
         if ($sig =~ /->\s*(.+?)\s*$/) {
@@ -394,6 +389,11 @@ for my $t (@raw_tags) {
     }
     if ($tref eq '') {
         $tref = ($lang eq 'C' || $lang eq 'C++') ? 'void' : '-';
+    }
+    # class/struct is a construction target, not a return type - label by kind
+    if ($type_kinds{$kind}) {
+        $tref = $kind;
+        $is_type{$key} = 1;
     }
 
     push @{$file_defs{$file}}, {
@@ -411,7 +411,7 @@ for my $t (@raw_tags) {
 
 my %all_known = map { $_ => 1 } keys %func_to_files;
 
-# ---- Pass C: read sources, fix end lines, scan bodies ----------------------
+# -- pass C: read sources, fix end lines, scan bodies
 my (%calls, %freq, %linerange);
 my $total_lines = 0;
 
@@ -445,6 +445,9 @@ for my $file (sort keys %file_defs) {
 
         $linerange{$d->{key}} = "${s}-${e}";
 
+        # types have no call body of their own; skip (see type_kinds above)
+        next if $is_type{$d->{key}};
+
         my $body = join('', @lines[$s-1 .. $e-1]);
 
         # strip comments and strings - best effort, not language-perfect
@@ -459,29 +462,53 @@ for my $file (sort keys %file_defs) {
         my $caller_key  = $d->{key};
         my $caller_name = $d->{name};
 
-        # Skip identifiers preceded by '.' or '>' (i.e. obj.foo() / ptr->foo()).
-        # This works uniformly for C/C++/Rust/Go/Java/Py/JS - '::' qualified
-        # calls (e.g. Foo::bar()) are still counted.
-        while ($body =~ /(?<![>.])\b([A-Za-z_]\w*)\s*\(/g) {
-            my $callee = $1;
-            next unless $all_known{$callee};
-            next if $callee eq $caller_name;
-
-            # resolve: prefer same-file def, else first file that defines it
+        # resolve callee name -> def key (same file first, else first input file)
+        my $record = sub {
+            my ($callee) = @_;
+            return unless $all_known{$callee};
+            return if $callee eq $caller_name;
             my $cf_ref = $func_to_files{$callee} // [];
             my $callee_file = (grep { $_ eq $file } @$cf_ref)
                                 ? $file
                                 : $cf_ref->[0];
-            next unless defined $callee_file;
-
+            return unless defined $callee_file;
             my $callee_key = "${callee_file}${SEP}${callee}";
             push @{$calls{$caller_key}}, $callee_key;
             $freq{$callee_key} = ($freq{$callee_key} // 0) + 1;
+        };
+
+        # plain calls: name(...); skip obj.foo()/ptr->foo(), keep Foo::bar();
+        # also catches C++ construction now that class/struct are known nodes
+        while ($body =~ /(?<![>.])\b([A-Za-z_]\w*)\s*\(/g) {
+            $record->($1);
+        }
+
+        # template calls: name<...>(...); guard keeps a single non-nested
+        # <> list so "a < b > (c)" doesn't misfire; all_known filters the rest
+        if ($generic_langs{$lang}) {
+            while ($body =~ /(?<![>.])\b([A-Za-z_]\w*)\s*<[^<>;{}()]*>\s*\(/g) {
+                $record->($1);
+            }
+        }
+
+        if ($lang eq 'C' || $lang eq 'C++') {
+            # func-pointer refs (factory reg, callbacks): &paintButton, &handler
+            # (?<!&) skips the second '&' of a '&&' logical-and
+            while ($body =~ /(?<!&)&\s*([A-Za-z_]\w*)\b/g) {
+                $record->($1);
+            }
+        }
+        if ($lang eq 'C++') {
+            # make_unique<T>/make_shared<T> -> edge to T (new T()/T() already
+            # caught by the plain-call scan above)
+            while ($body =~ /\b(?:make_unique|make_shared)\s*<\s*([A-Za-z_]\w*)/g) {
+                $record->($1);
+            }
         }
     }
 }
 
-# ---- Emit -----------------------------------------------------------------
+# -- emit
 print "CALLS\n";
 for my $file (sort keys %file_defs) {
     my @sorted = sort { $a->{line} <=> $b->{line} } @{$file_defs{$file}};
@@ -526,9 +553,7 @@ PERL
 
 [[ -z "$_PERL_OUT" ]] && { printf 'No functions found in specified files.\n' >&2; exit 1; }
 
-# =============================================================================
-# Load perl output into bash assoc arrays
-# =============================================================================
+# -- Load perl output into bash assoc arrays
 declare -A CALLS=() RTYPE=() FREQ=() LINE_RANGE=()
 declare -a ALL_FUNCS=()
 _SEC=""
@@ -567,9 +592,7 @@ done <<< "$_PERL_OUT"
 [[ ${#ALL_FUNCS[@]} -eq 0 ]] && { printf 'No functions found.\n' >&2; exit 1; }
 _T_BACKEND_END=$(_ts_ms)
 
-# =============================================================================
-# Reachable set (when -f is given)
-# =============================================================================
+# -- Reachable set (when FUNC is non-empty)
 declare -a VISIBLE_FUNCS=()
 _ROOT_KEY=""
 
@@ -601,9 +624,7 @@ else
   VISIBLE_FUNCS=("${ALL_FUNCS[@]}")
 fi
 
-# =============================================================================
-# 256-color map
-# =============================================================================
+# -- 256-color map
 declare -A FUNC_COLOR=()
 if [[ $_USE_COLOR -eq 1 ]]; then
   declare -A _SNAME=()
@@ -666,9 +687,7 @@ _uniq_calls_names() {
   printf '%s' "$_out"
 }
 
-# =============================================================================
-# Root detection
-# =============================================================================
+# -- Root detection
 declare -A _IS_CALLEE=()
 for _K in "${ALL_FUNCS[@]}"; do
   for _CK in ${CALLS[$_K]:-}; do _IS_CALLEE[$_CK]=1; done
@@ -684,9 +703,7 @@ else
   [[ ${#ROOTS[@]} -eq 0 ]] && ROOTS=("${ALL_FUNCS[@]}")
 fi
 
-# =============================================================================
-# Tree emitter
-# =============================================================================
+# -- Tree emitter
 declare -A _SEEN_SUB=()
 
 _emit() {
@@ -736,9 +753,7 @@ _emit() {
   done
 }
 
-# =============================================================================
-# Summary table
-# =============================================================================
+# -- Summary table
 _print_table() {
   local _col=${1:-0}
 
@@ -798,9 +813,7 @@ _print_table() {
   printf '\n'
 }
 
-# =============================================================================
-# ASCII renderer
-# =============================================================================
+# -- ASCII renderer
 _print_ascii() {
   local _col=${1:-0}
   _SEEN_SUB=()
@@ -813,13 +826,26 @@ _print_ascii() {
   _print_table "$_col"
 }
 
-# =============================================================================
-# Mermaid writer
-# =============================================================================
+# -- Graph scope: FUNC limits DOT/Mermaid to VISIBLE_FUNCS, root highlighted;
+# empty FUNC means everything is in scope, output unchanged
+declare -A _GRAPH_SCOPE=()
+_graph_scope_init() {
+  _GRAPH_SCOPE=()
+  [[ -z "$_ROOT_KEY" ]] && return
+  local _k
+  for _k in "${VISIBLE_FUNCS[@]}"; do _GRAPH_SCOPE[$_k]=1; done
+}
+_in_scope() {  # _in_scope <key> -> 0 if the key belongs in the graph
+  [[ -z "$_ROOT_KEY" ]] && return 0
+  [[ -n "${_GRAPH_SCOPE[$1]:-}" ]]
+}
+
+# -- Mermaid writer
 _write_mermaid() {
   local _out_file=$1
-  local _k _ck _f _bn _sid _fn _fid _kf _kb _ks _kn _kni _cf _cb _cs _cn _cni _eid
+  local _k _ck _f _bn _sid _fn _fid _kf _kb _ks _kn _kni _cf _cb _cs _cn _cni _eid _rootid=""
   declare -A _fmap=() _eseen=()
+  _graph_scope_init
 
   {
     # Theme init directive must appear before the graph declaration
@@ -831,6 +857,7 @@ _write_mermaid() {
     printf 'flowchart TD\n'
     if [[ $_MULTI -eq 1 ]]; then
       for _k in "${ALL_FUNCS[@]}"; do
+        _in_scope "$_k" || continue
         _f=$(_kfile "$_k"); _fmap[$_f]+=" $_k"
       done
       for _f in $(printf '%s\n' "${!_fmap[@]}" | sort); do
@@ -840,20 +867,25 @@ _write_mermaid() {
           _fn=$(_kfunc "$_k")
           _fid=$(_mmd_id "$_fn")
           printf '    %s_%s["%s %s()"]\n' "$_sid" "$_fid" "${RTYPE[$_k]:-void}" "$_fn"
+          [[ "$_k" == "$_ROOT_KEY" ]] && _rootid="${_sid}_${_fid}"
         done
         printf '  end\n'
       done
     else
       for _k in "${ALL_FUNCS[@]}"; do
+        _in_scope "$_k" || continue
         _fn=$(_kfunc "$_k")
         _fid=$(_mmd_id "$_fn")
         printf '  %s["%s %s()"]\n' "$_fid" "${RTYPE[$_k]:-void}" "$_fn"
+        [[ "$_k" == "$_ROOT_KEY" ]] && _rootid="$_fid"
       done
     fi
 
     printf '\n'
     for _k in "${ALL_FUNCS[@]}"; do
+      _in_scope "$_k" || continue
       for _ck in ${CALLS[$_k]:-}; do
+        _in_scope "$_ck" || continue
         _eid="${_k}->${_ck}"
         [[ -n "${_eseen[$_eid]:-}" ]] && continue
         _eseen[$_eid]=1
@@ -868,16 +900,20 @@ _write_mermaid() {
         fi
       done
     done
+
+    # Highlight the FUNC root node
+    if [[ -n "$_rootid" ]]; then
+      printf '\n  style %s fill:#ffcf4d,stroke:#b8860b,stroke-width:2px,color:#000\n' "$_rootid"
+    fi
   } > "$_out_file"
 }
 
-# =============================================================================
-# DOT writer
-# =============================================================================
+# -- DOT writer
 _write_dot() {
   local _out_file=$1
-  local _k _ck _f _bn _fn _ci _eid
+  local _k _ck _f _bn _fn _ci _eid _rootattr
   declare -A _fmap=() _eseen=()
+  _graph_scope_init
 
   # Theme colors
   local _bg_color="#ffffff"
@@ -886,6 +922,8 @@ _write_dot() {
   local _edge_color="#333333"
   local _cluster_fill="#eeeeee"
   local _cluster_font="black"
+  local _root_fill="#ffcf4d"    # FUNC root node highlight
+  local _root_font="black"
 
   case "$_OUT_THEME" in
     dark)
@@ -895,6 +933,8 @@ _write_dot() {
       _edge_color="#aaaaaa"
       _cluster_fill="#2a2a2a"
       _cluster_font="white"
+      _root_fill="#8a6d00"
+      _root_font="white"
       ;;
     light)
       # explicit light values (same as defaults but explicit)
@@ -907,11 +947,18 @@ _write_dot() {
       ;;
   esac
 
+  # Per-node extra attributes: highlight the FUNC root.
+  _node_extra() {  # _node_extra <key>
+    if [[ -n "$_ROOT_KEY" && "$1" == "$_ROOT_KEY" ]]; then
+      printf ' fillcolor="%s" fontcolor="%s"' "$_root_fill" "$_root_font"
+    fi
+  }
+
   {
     printf 'digraph callgraph {\n'
-    printf '    graph [label="%s" labelloc=t fontname="Courier" fontsize=14 bgcolor="%s" fontcolor="%s"];\n' \
+    printf '    graph [label="%s" labelloc=t fontname="Courier" fontsize=14 bgcolor="%s" fontcolor="%s" splines=ortho nodesep=0.4 ranksep=0.7 concentrate=true];\n' \
       "$_TITLE" "$_bg_color" "$_font_color"
-    printf '    node  [shape=box fontname="Courier" style=filled fillcolor="%s" fontcolor="%s"];\n' \
+    printf '    node  [shape=box fontname="Courier" style="rounded,filled" fillcolor="%s" fontcolor="%s"];\n' \
       "$_node_fill" "$_font_color"
     printf '    edge  [fontname="Courier" fontsize=10 color="%s" fontcolor="%s"];\n' \
       "$_edge_color" "$_font_color"
@@ -919,6 +966,7 @@ _write_dot() {
 
     if [[ $_MULTI -eq 1 ]]; then
       for _k in "${ALL_FUNCS[@]}"; do
+        _in_scope "$_k" || continue
         _f=$(_kfile "$_k"); _fmap[$_f]+=" $_k"
       done
       _ci=0
@@ -929,23 +977,26 @@ _write_dot() {
           "$_bn" "$_cluster_fill" "$_cluster_font"
         for _k in ${_fmap[$_f]}; do
           _fn=$(_kfunc "$_k")
-          printf '        "%s" [label="%s\\n%s()\\ncalled: %s\\nL%s"];\n' \
-            "$_k" "${RTYPE[$_k]:-void}" "$_fn" "${FREQ[$_k]:-0}" "${LINE_RANGE[$_k]:-?}"
+          printf '        "%s" [label="%s\\n%s()\\ncalled: %s\\nL%s"%s];\n' \
+            "$_k" "${RTYPE[$_k]:-void}" "$_fn" "${FREQ[$_k]:-0}" "${LINE_RANGE[$_k]:-?}" "$(_node_extra "$_k")"
         done
         printf '    }\n\n'
         _ci=$(( _ci + 1 ))
       done
     else
       for _k in "${ALL_FUNCS[@]}"; do
+        _in_scope "$_k" || continue
         _fn=$(_kfunc "$_k")
-        printf '    "%s" [label="%s\\n%s()\\ncalled: %s\\nL%s"];\n' \
-          "$_fn" "${RTYPE[$_k]:-void}" "$_fn" "${FREQ[$_k]:-0}" "${LINE_RANGE[$_k]:-?}"
+        printf '    "%s" [label="%s\\n%s()\\ncalled: %s\\nL%s"%s];\n' \
+          "$_fn" "${RTYPE[$_k]:-void}" "$_fn" "${FREQ[$_k]:-0}" "${LINE_RANGE[$_k]:-?}" "$(_node_extra "$_k")"
       done
     fi
 
     printf '\n'
     for _k in "${ALL_FUNCS[@]}"; do
+      _in_scope "$_k" || continue
       for _ck in ${CALLS[$_k]:-}; do
+        _in_scope "$_ck" || continue
         _eid="${_k}->${_ck}"
         [[ -n "${_eseen[$_eid]:-}" ]] && continue
         _eseen[$_eid]=1
@@ -960,9 +1011,7 @@ _write_dot() {
   } > "$_out_file"
 }
 
-# =============================================================================
-# Performance footer (only when -p)
-# =============================================================================
+# -- Performance footer (only when -p)
 _LINES_CLI=0
 _LINES_FILE=0
 
@@ -997,9 +1046,7 @@ _print_timing() {
   printf '\n'
 }
 
-# =============================================================================
-# Terminal output (skipped if -t)
-# =============================================================================
+# -- Terminal output (skipped if -t)
 _T_PRINT_START=$(_ts_ms)
 if [[ $_NO_CLI -eq 0 ]]; then
   _TMP_CLI=$(mktemp)
@@ -1012,9 +1059,7 @@ else
   _T_PRINT_END=$(_ts_ms)
 fi
 
-# =============================================================================
-# File outputs
-# =============================================================================
+# -- File outputs
 if [[ -n "$_OUT_TXT" ]]; then
   _print_ascii 0 > "$_OUT_TXT"
   _LINES_FILE=$(( _LINES_FILE + $(wc -l < "$_OUT_TXT") ))
