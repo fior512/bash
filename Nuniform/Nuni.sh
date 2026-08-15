@@ -5,11 +5,16 @@
 # Scans files for leftover dev artefacts before pushing to prod:
 #   --ai      AI artefacts: zero-width/invisible Unicode, homoglyphs,
 #             bidi control chars, soft hyphens/NBSP, smart quotes/dashes,
-#             AI placeholder markers
+#             AI placeholder markers, AI attribution/disclaimers
 #   --code    Code smells: comments (TODO/FIXME/...), leftover debug code,
-#             security (secrets, keys, tokens, private keys)
-#   --format  Formatting: tabs, trailing whitespace, line length, CRLF, BOM
+#             placeholder git clones, security (secrets, keys, tokens,
+#             private keys)
+#   --format  Formatting: tabs, leading tabs, trailing whitespace, multiple
+#             empty lines, line length, non-ASCII, CRLF, BOM
 #   --path    Hardcoded paths, URLs, IP addresses, env-var paths
+#   --license Copyright/licensing hygiene: placeholder copyright headers,
+#             future copyright years
+#   --all     All profiles (default when no profile flag is given)
 #
 # Usage: ./Nuni.sh [OPTIONS] [DIRECTORY] [FILE_PATTERN]
 
@@ -165,8 +170,10 @@ PROFILES (default: all):
                        bidi control chars, soft hyphens/NBSP, smart quotes/dashes,
                        AI placeholder markers, AI attribution/disclaimers
     --code             Code smells: comments (TODO/FIXME/HACK/...), leftover
-                       debug code, security (secrets, keys, tokens, private keys)
-    --format, --style  Formatting: tabs, trailing whitespace, line length, CRLF, BOM
+                       debug code, placeholder git clones, security (secrets,
+                       keys, tokens, private keys)
+    --format, --style  Formatting: tabs, leading tabs, trailing whitespace,
+                       empty lines, line length, non-ASCII, CRLF, BOM
     --path             Hardcoded paths, URLs, IP addresses, env-var paths
     --license          Copyright/licensing hygiene: placeholder copyright
                        headers, future copyright years
