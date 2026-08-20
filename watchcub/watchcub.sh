@@ -3,6 +3,8 @@
 # watchcub - one-command system tuning + run-condition logging for benchmarks
 # ----------------------------------------------------------------------------
 #   sudo ./watchcub.sh status                  show current settings (read-only)
+#   ./watchcub.sh cpu                          topology: cache/NUMA layout (read-only)
+#   ./watchcub.sh core                         per-thread usage/freq/governor snapshot (read-only)
 #   sudo ./watchcub.sh bench   [flags]         save state + apply perf profile
 #   sudo ./watchcub.sh verify  [flags]         pre-flight: fit to benchmark?
 #   sudo ./watchcub.sh run [flags] -- CMD...   run CMD, sample, log + report
@@ -193,6 +195,174 @@ show_status() {
     local c
     for c in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
         [ -e "$c" ] && { info "AMD GPU"; log "$c" "$(rd "$c")"; }; done
+}
+
+# Static layout: sockets/cores/cache/NUMA. Doesn't change while the box is
+# up, so no sampling - lscpu/numactl if present, /proc/cpuinfo fallback.
+show_cpu() {
+    info "CPU topology"
+    if have lscpu; then lscpu
+    else grep -E 'model name|physical id|siblings|cpu cores|core id' /proc/cpuinfo | sort -u
+    fi
+    if [ -d "$CPU_SYS/cpu0/cache" ]; then
+        info "Cache (cpu0)"
+        local c
+        for c in "$CPU_SYS"/cpu0/cache/index*; do [ -d "$c" ] || continue
+            printf '  L%-2s %-10s size=%-8s line=%sB ways=%-4s sets=%-6s shared_cpu_list=%s\n' \
+              "$(rd "$c/level")" "$(rd "$c/type")" "$(rd "$c/size")" \
+              "$(rd "$c/coherency_line_size")" "$(rd "$c/ways_of_associativity")" \
+              "$(rd "$c/number_of_sets")" "$(rd "$c/shared_cpu_list")"; done
+    fi
+    if have numactl; then info "NUMA"; numactl -H; fi
+}
+
+# Live per-thread state: usage% (one SAMPLE_INT-wide /proc/stat delta per
+# logical CPU), current freq + governor (per-cpu cpufreq, not per-policy -
+# SMT siblings can differ). Temp/power are package-wide, not per-thread -
+# no CPU exposes either at hardware-thread granularity - so they're printed
+# once below the table instead of faked into a per-row column.
+irq_totals() {  # per-CPU column sums from /proc/interrupts, "cpuN total" per line
+    awk -v ncpu="$1" 'NR==1{next} NF>ncpu{ for(i=2;i<=ncpu+1;i++){ if ($i ~ /^[0-9]+$/) sum[i-2]+=$i } }
+        END{ for (c in sum) print c, sum[c] }' /proc/interrupts
+}
+
+# Path to the deepest cpuidle state dir for one cpu - highest state* index,
+# picked by numeric comparison (no ls|sort fork: this runs per-core, twice
+# per sample, and forking a pipeline 2*ncpu times measurably stretches the
+# window the %-of-window calculations below assume).
+deepest_state_dir() {  # <cpu>
+    local d best="" bestn=-1 n
+    for d in "$CPU_SYS/cpu$1"/cpuidle/state*; do
+        [ -d "$d" ] || continue
+        n=${d##*state}
+        [ "$n" -gt "$bestn" ] && { bestn=$n; best=$d; }
+    done
+    echo "$best"
+}
+# Deepest state's residency time (usec) for every cpu. Callers diff two
+# snapshots against the *actual* elapsed wall-clock time, not the nominal
+# sample interval - see show_core's elapsed/t_start/t_end.
+deep_idle_totals() {  # <ncpu>
+    local i d t
+    for ((i = 0; i < $1; i++)); do
+        d=$(deepest_state_dir "$i")
+        [ -n "$d" ] && { t=$(rd "$d/time"); [ -n "$t" ] && echo "$i $t"; }
+    done
+}
+
+show_core() {
+    info "Per-thread state (${SAMPLE_INT}s sample)"
+    local ncpu; ncpu=$(nproc 2>/dev/null || echo 0)
+    [ "$ncpu" -gt 0 ] || { echo "no CPUs found" >&2; return 1; }
+
+    local rapl="" f
+    for f in /sys/class/powercap/*/energy_uj; do [ -r "$f" ] && { rapl="$f"; break; }; done
+    # Name/latency of the deepest cpuidle state, for the column header -
+    # same state index deep_idle_totals reads, assumed uniform across cores.
+    local deepdir deepname="" deeplat=""
+    deepdir=$(deepest_state_dir 0)
+    [ -n "$deepdir" ] && { deepname=$(rd "$deepdir/name"); deeplat=$(rd "$deepdir/latency"); }
+
+    local line tag cpu rest fields tot i
+    # tot/idle: /proc/stat -> usage%. wait/ctxsw: /proc/schedstat fields 8/9
+    # (run_delay ns = time spent queued waiting for this cpu; pcount =
+    # timeslices handed out, used as the context-switch proxy - schedstat's
+    # own sched_count field reads 0 on this kernel, apparently unpopulated)
+    # - direct scheduler-contention signals, distinct from usage% (a core
+    # can read 0% busy and still be where the scheduler keeps parking and
+    # waking short-lived threads). irq: per-cpu interrupt count from
+    # /proc/interrupts. deep: residency in the deepest C-state - high
+    # deep-idle% on an otherwise "quiet" core means pinning a benchmark
+    # there pays the ${deeplat:-?}us wake latency on every wakeup, which is
+    # exactly what watchcub bench --cstate=hold exists to avoid.
+    declare -A tot0 idle0 tot1 idle1 wait0 wait1 ctxsw0 ctxsw1 irq0 irq1 deep0 deep1 sib
+    local p0=0 p1=0
+    local t_start t_end elapsed
+    t_start=$(date +%s.%N)
+    [ -n "$rapl" ] && p0=$(rd "$rapl")
+    while read -r line; do
+        tag=${line%% *}
+        case "$tag" in
+          cpu[0-9]*)
+            cpu=${tag#cpu}; rest=${line#* }; read -r -a fields <<< "$rest"
+            tot=0; for i in "${fields[@]}"; do tot=$((tot+i)); done
+            tot0[$cpu]=$tot; idle0[$cpu]=$(( fields[3] + fields[4] ));;
+        esac
+    done < /proc/stat
+    while read -r line; do
+        tag=${line%% *}
+        case "$tag" in
+          cpu[0-9]*)
+            cpu=${tag#cpu}; rest=${line#* }; read -r -a fields <<< "$rest"
+            ctxsw0[$cpu]=${fields[8]:-0}; wait0[$cpu]=${fields[7]:-0};;
+        esac
+    done < /proc/schedstat
+    while read -r cpu tot; do irq0[$cpu]=$tot; done < <(irq_totals "$ncpu")
+    while read -r cpu t; do deep0[$cpu]=$t; done < <(deep_idle_totals "$ncpu")
+
+    sleep "$SAMPLE_INT"
+
+    [ -n "$rapl" ] && p1=$(rd "$rapl")
+    while read -r line; do
+        tag=${line%% *}
+        case "$tag" in
+          cpu[0-9]*)
+            cpu=${tag#cpu}; rest=${line#* }; read -r -a fields <<< "$rest"
+            tot=0; for i in "${fields[@]}"; do tot=$((tot+i)); done
+            tot1[$cpu]=$tot; idle1[$cpu]=$(( fields[3] + fields[4] ));;
+        esac
+    done < /proc/stat
+    while read -r line; do
+        tag=${line%% *}
+        case "$tag" in
+          cpu[0-9]*)
+            cpu=${tag#cpu}; rest=${line#* }; read -r -a fields <<< "$rest"
+            ctxsw1[$cpu]=${fields[8]:-0}; wait1[$cpu]=${fields[7]:-0};;
+        esac
+    done < /proc/schedstat
+    while read -r cpu tot; do irq1[$cpu]=$tot; done < <(irq_totals "$ncpu")
+    while read -r cpu t; do deep1[$cpu]=$t; done < <(deep_idle_totals "$ncpu")
+    t_end=$(date +%s.%N)
+    elapsed=$(awk -v a="$t_start" -v b="$t_end" 'BEGIN{printf "%.6f", b-a}')
+
+    for ((i = 0; i < ncpu; i++)); do
+        sib[$i]=$(rd "$CPU_SYS/cpu$i/topology/thread_siblings_list")
+    done
+
+    # IRQ/s, CTXSW/s and DEEP-IDLE% below are computed against this, not the
+    # nominal SAMPLE_INT above - per-core sampling itself takes real time.
+    log "actual sample window" "${elapsed}s (nominal: ${SAMPLE_INT}s)"
+    printf '  %-6s %7s %9s %9s  %-10s %8s %9s %8s %11s  %s\n' \
+        CPU "USAGE%" "FREQ" "MAXFREQ" GOVERNOR "IRQ/s" "WAIT(ms)" "CTXSW/s" "DEEP-IDLE%" "SMT SIBLING"
+    for ((i = 0; i < ncpu; i++)); do
+        local busy="-" dt di freq="-" maxfreq="-" gov="-" irqs="-" waitms="-" ctxsws="-" deeppct="-" sibother
+        if [ -n "${tot0[$i]:-}" ] && [ -n "${tot1[$i]:-}" ]; then
+            dt=$(( tot1[$i] - tot0[$i] )); di=$(( idle1[$i] - idle0[$i] ))
+            [ "$dt" -gt 0 ] && busy=$(awk -v dt="$dt" -v di="$di" 'BEGIN{printf "%.1f", (dt-di)*100/dt}')
+        fi
+        [ -e "$CPU_SYS/cpu$i/cpufreq/scaling_cur_freq" ] && freq=$(( $(rd "$CPU_SYS/cpu$i/cpufreq/scaling_cur_freq") / 1000 ))
+        [ -e "$CPU_SYS/cpu$i/cpufreq/scaling_max_freq" ] && maxfreq=$(( $(rd "$CPU_SYS/cpu$i/cpufreq/scaling_max_freq") / 1000 ))
+        [ -e "$CPU_SYS/cpu$i/cpufreq/scaling_governor" ] && gov=$(rd "$CPU_SYS/cpu$i/cpufreq/scaling_governor")
+        [ -n "${irq0[$i]:-}" ] && [ -n "${irq1[$i]:-}" ] &&
+            irqs=$(awk -v a="${irq0[$i]}" -v b="${irq1[$i]}" -v s="$elapsed" 'BEGIN{printf "%.0f", (b-a)/s}')
+        [ -n "${wait0[$i]:-}" ] && [ -n "${wait1[$i]:-}" ] &&
+            waitms=$(awk -v a="${wait0[$i]}" -v b="${wait1[$i]}" 'BEGIN{printf "%.1f", (b-a)/1000000}')
+        [ -n "${ctxsw0[$i]:-}" ] && [ -n "${ctxsw1[$i]:-}" ] &&
+            ctxsws=$(awk -v a="${ctxsw0[$i]}" -v b="${ctxsw1[$i]}" -v s="$elapsed" 'BEGIN{printf "%.0f", (b-a)/s}')
+        [ -n "${deep0[$i]:-}" ] && [ -n "${deep1[$i]:-}" ] &&
+            deeppct=$(awk -v a="${deep0[$i]}" -v b="${deep1[$i]}" -v s="$elapsed" 'BEGIN{printf "%.1f", (b-a)/(s*1000000)*100}')
+        sibother=$(echo "${sib[$i]:-$i}" | tr ',' '\n' | grep -v "^$i\$" | paste -sd, -)
+        printf '  cpu%-3s %6s%% %8sM %8sM  %-10s %8s %9s %8s %11s  %s\n' \
+            "$i" "$busy" "$freq" "$maxfreq" "$gov" "$irqs" "$waitms" "$ctxsws" "$deeppct" "${sibother:--}"
+    done
+
+    echo
+    [ -n "$deepname" ] && log "deepest C-state on this cpu" "$deepname (${deeplat}us exit latency) - DEEP-IDLE% is time spent there"
+    log "hottest sensor (package-wide, not per-thread)" "$(( $(max_temp) / 1000 ))C"
+    if [ -n "$rapl" ] && [ "${p1:-0}" -ge "${p0:-0}" ] 2>/dev/null; then
+        log "package power (package-wide, not per-thread)" \
+            "$(awk -v a="$p0" -v b="$p1" -v s="$SAMPLE_INT" 'BEGIN{printf "%.1fW", (b-a)/1000000/s}')"
+    fi
 }
 
 # Full machine snapshot for run documentation
@@ -530,7 +700,7 @@ do_run() {
 usage() {
     cat <<EOF
 Usage: sudo $0 <command> [flags] [-- benchmark-cmd]
-Commands: status | bench | verify | run -- <cmd> | restore
+Commands: status | cpu | core | bench | verify | run -- <cmd> | restore
           profile new [path] | profile show | trace-unlock | trace-lock
 Flags:    --turbo=keep|off --pinfreq=on|off --cstate=hold|keep --smt=keep|off
           --thp=always|never|keep --temp-warn=C --mem-max=PCT --load-max=FRAC
@@ -577,6 +747,8 @@ finalize_cfg
 
 case "$CMD" in
     status)       show_status ;;
+    cpu)          show_cpu ;;
+    core)         show_core ;;
     bench)        apply_bench ;;
     restore)      do_restore ;;
     verify)       do_verify ;;
