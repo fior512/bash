@@ -70,6 +70,8 @@ sudo watchcub bench -p watchcub.profile
 | Command | Root | What it does |
 |---|---|---|
 | `status` | no | Dump current CPU/kernel/GPU/thermal settings. Read-only. |
+| `cpu` | no | CPU topology: sockets, cores, cache, NUMA layout. Static - no sampling. Read-only. |
+| `core [flags]` | no | Per-thread snapshot over one `SAMPLE` window: usage%, freq, governor, IRQ/s, sched wait, ctxsw/s, deep-idle%, SMT siblings. Read-only. |
 | `bench [flags]` | yes | Save current values, then apply the performance profile. Refuses to double-apply. |
 | `verify [flags]` | no | Pre-flight checklist (governor, load, RAM, swap, temp, steal, dirty pages). Exit code = warning count, so you can gate scripts on it. |
 | `run [flags] -- CMD...` | no* | Run CMD while sampling per-core frequency, temperature, and thread placement. Writes a full log directory. |
