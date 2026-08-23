@@ -43,6 +43,16 @@ _detect_arch() {
 }
 ARCH="${DOC_ARCH:-$(_detect_arch)}"
 
+# ─── terminal width ──────────────────────────────────────────────────────────
+# Used to scale the simd concept/family/decomposition views to the actual
+# console instead of a fixed 80 columns. Falls back to 80 when not a tty
+# (piped/redirected output) or when the terminal size can't be queried.
+if [ -t 1 ]; then
+    TERM_COLS="${COLUMNS:-$(tput cols 2>/dev/null)}"
+fi
+[[ "$TERM_COLS" =~ ^[0-9]+$ ]] || TERM_COLS=80
+[ "$TERM_COLS" -lt 60 ] && TERM_COLS=60
+
 # ─── colours ─────────────────────────────────────────────────────────────────
 if [ -t 1 ]; then
     CH=$'\e[1;36m'   # bold cyan    – headers / labels
@@ -117,10 +127,19 @@ ${CH}CATEGORIES${CR}
 
     ${CK}simd${CR}  <query>        SIMD instruction or C intrinsic lookup.
                    Query can be a mnemonic (VADDPS), an intrinsic (_mm256_add_ps),
-                   or a partial name. Shows: signature, pseudocode, perf.
+                   a bare vector/suffix token (mm512, epi8), or an op/concept
+                   word (load, fmadd, reciprocal). Op words match by name first,
+                   then category, then definition text, and print a vector/func/
+                   suffix breakdown -- definitions are derived from the naming
+                   grammar or mined live from the matched intrinsics'
+                   descriptions, not a static glossary. A bare suffix/vector
+                   token instead shows it grouped with its sibling widths
+                   (epi8/16/32/64/64x, mm/mm256/mm512, ...).
                    ${CD}Examples:  doc simd vaddps            (by asm mnemonic)${CR}
                    ${CD}           doc simd _mm256_add_ps     (by intrinsic name)${CR}
-                   ${CD}           doc simd fmadd             (fuzzy / partial)${CR}
+                   ${CD}           doc simd load              (op: name-first breakdown)${CR}
+                   ${CD}           doc simd epi8              (suffix family: epi8/16/32/64x/...)${CR}
+                   ${CD}           doc simd reciprocal        (definition-text fallback)${CR}
                    ${CD}           doc simd list avx2         (list all AVX2 intrinsics)${CR}
                    ${CD}           doc simd list avx512 load  (list AVX-512 Load ops)${CR}
 
@@ -411,6 +430,523 @@ x86doc() {
     } | less -RF
 }
 
+# ─── simd concept: dynamic token decoding ──────────────────────────────────
+# No static per-token glossary. Parse width/sign from the token itself,
+# cross-check against the XML's return types. Irregular tokens (ph, bf16,
+# op words like "load") fall back: mine first sentence of a matching
+# intrinsic's <description>.
+
+_simd_is_suffix() {
+    [[ "$1" =~ ^(ep[iu][0-9]+x?|pi[0-9]+|si[0-9]+|mask[0-9]+|[iu][0-9]+|p[sd]|s[sd]|ph|bf16)$ ]]
+}
+
+_simd_is_vector() {
+    [[ "$1" =~ ^mm[0-9]*$ ]]
+}
+
+_simd_mine_def() {
+    local tok="$1" desc
+    desc=$(xmlstarlet sel --novalid -t \
+        -m "(//intrinsic[contains(@name,'_${tok}')]/description)[1]" -v "." "$IXML" 2>/dev/null)
+    [ -z "$desc" ] && desc=$(xmlstarlet sel --novalid -t \
+        -m "(//intrinsic[contains(@name,'${tok}')]/description)[1]" -v "." "$IXML" 2>/dev/null)
+    desc="${desc%%.*}."
+    desc="${desc//\"/}"
+    printf "%s" "${desc:-(no description found)}"
+}
+
+# Mine from one exact @name, not a dataset-wide substring search --
+# keeps the mined text on-topic.
+_simd_mine_named() {
+    local name="$1" desc
+    desc=$(xmlstarlet sel --novalid -t \
+        -m "//intrinsic[@name='${name}']/description" -v "." "$IXML" 2>/dev/null)
+    desc="${desc%%.*}."
+    desc="${desc//\"/}"
+    printf "%s" "${desc:-(no description found)}"
+}
+
+# Scale a column budget to $TERM_COLS instead of a fixed 80.
+# $1 = line overhead (label/padding chars, calibrated at 80 cols).
+# $2 = floor, so narrow terminals don't collapse to nothing.
+_simd_budget() {
+    local overhead="$1" min="${2:-20}"
+    local b=$((TERM_COLS - overhead))
+    [ "$b" -lt "$min" ] && b="$min"
+    printf "%d" "$b"
+}
+
+# Hard-cap a string to $2 visible chars (ellipsis on truncation). Keeps
+# mined description text from blowing past the console width.
+_simd_trunc() {
+    local text="$1" max="$2"
+    if [ "${#text}" -gt "$max" ]; then
+        printf "%s…" "${text:0:$((max > 1 ? max - 1 : 0))}"
+    else
+        printf "%s" "$text"
+    fi
+}
+
+# Join a comma list up to $2 chars, summarize the rest as "(+N more)".
+# Full list still shown, one per line, in the section below.
+_simd_join_trunc() {
+    local csv="$1" max="$2"
+    local -a items
+    IFS=',' read -ra items <<< "$csv"
+    # reserve room for the " (+N more)" trailer so the final line never
+    # overflows $max once the trailer is appended
+    local budget=$((max - 12))
+    local out="" n=0 it cand
+    for it in "${items[@]}"; do
+        cand="${out}${out:+,}${it}"
+        if [ "${#cand}" -gt "$budget" ]; then
+            printf "%s (+%d more)" "$out" "$(( ${#items[@]} - n ))"
+            return
+        fi
+        out="$cand"; n=$((n + 1))
+    done
+    printf "%s" "$out"
+}
+
+# Only hardcode in this file: ~10 root morphemes of Intel's naming grammar
+# (mm/ep/i/u/si/pi/mask/p/s/x). Fixed vocabulary, not per-value data --
+# every width/sign/variant built from them (epi128, si256) is still derived.
+# Verified against Intel's C++ Intrinsic Reference. Re-verify before editing
+# a root -- one wrong root poisons every token built on it. Bit us once
+# already with "si".
+_simd_token_def() {
+    local tok="$1"
+    case "$tok" in
+        "(scalar)") printf "no vector prefix (GPR/mask arg)" ;;
+        "(base)")   printf "no op suffix beyond mask/vector" ;;
+        mm|mm[0-9]*)
+            local width tech
+            width=$(xmlstarlet sel --novalid -t \
+                -m "//intrinsic[starts-with(@name,'_${tok}_')]/return[starts-with(@type,'__m') and not(contains(@type,'mask'))]" \
+                -v "@type" -n "$IXML" 2>/dev/null | grep -oE '[0-9]+' | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
+            [ -z "$width" ] && width="128"
+            local techs_present pref
+            techs_present=$(xmlstarlet sel --novalid -t \
+                -m "//intrinsic[starts-with(@name,'_${tok}_')]" -v "@tech" -n "$IXML" 2>/dev/null | sort -u)
+            for pref in SSE_ALL AVX_ALL AVX-512 MMX SVML AMX Other; do
+                if grep -qxF "$pref" <<< "$techs_present"; then tech="$pref"; break; fi
+            done
+            printf "%s-bit vector%s" "$width" "${tech:+ (tech=$tech)}"
+            ;;
+        ep[iu][0-9]*|ep[iu][0-9]*x)
+            local sign=${tok:2:1} rest=${tok:3} variant=""
+            [[ "$rest" == *x ]] && { variant=" (long-long/imm64 overload)"; rest="${rest%x}"; }
+            [ "$sign" = "i" ] && sign="signed" || sign="unsigned"
+            printf "packed %s %s-bit integers%s" "$sign" "$rest" "$variant"
+            ;;
+        pi[0-9]*)
+            printf "packed %s-bit integers (MMX)" "${tok#pi}"
+            ;;
+        si[0-9]*)
+            local w="${tok#si}"
+            if [ "$w" -ge 128 ]; then
+                printf "signed integer, %s-bit vector (opaque, unspecified elements)" "$w"
+            else
+                printf "signed integer, %s-bit (opaque, unspecified elements)" "$w"
+            fi
+            ;;
+        mask[0-9]*)
+            printf "%s-bit mask register (__mmask%s)" "${tok#mask}" "${tok#mask}"
+            ;;
+        p[sd])
+            [ "${tok#p}" = "s" ] && printf "packed single-precision float" || printf "packed double-precision float"
+            ;;
+        s[sd])
+            [ "${tok#s}" = "s" ] && printf "scalar single-precision float" || printf "scalar double-precision float"
+            ;;
+        [iu][0-9]*)
+            local sign=${tok:0:1}
+            [ "$sign" = "i" ] && sign="signed" || sign="unsigned"
+            printf "%s %s-bit scalar integer" "$sign" "${tok:1}"
+            ;;
+        *)
+            _simd_mine_def "$tok"
+            ;;
+    esac
+}
+
+# Split a family token into its morphemes for the "tok = a + b + c" line.
+# Same rules as _simd_token_def, surfaced piece by piece.
+_simd_morphs() {
+    local tok="$1" kind="$2"
+    case "$kind" in
+        ep)
+            local sign=${tok:2:1} rest=${tok:3}
+            if [[ "$rest" == *x ]]; then
+                printf "ep + %s + %s + x" "$sign" "${rest%x}"
+            else
+                printf "ep + %s + %s" "$sign" "$rest"
+            fi
+            ;;
+        pi)    printf "pi + %s" "${tok#pi}" ;;
+        si)    printf "si + %s" "${tok#si}" ;;
+        mask)  printf "mask + %s" "${tok#mask}" ;;
+        iu)    printf "%s + %s" "${tok:0:1}" "${tok:1}" ;;
+        float) printf "%s + %s" "${tok:0:1}" "${tok:1}" ;;
+        mm)
+            local w="${tok#mm}"
+            [ -z "$w" ] && printf "mm  (128 implied)" || printf "mm + %s" "$w"
+            ;;
+        *) printf "%s" "$tok" ;;
+    esac
+}
+
+# Colored fixed-width cell: pad plain text first, wrap in color after --
+# keeps escape codes out of the %-Ns width count, grid stays aligned.
+_simd_cell() {
+    local text="$1" width="$2" color="${3:-$CV}"
+    printf "${color}%-${width}s${CR}" "$text"
+}
+
+# Bare suffix/vector token ("epi8", "mm512"): group with siblings
+# (epi8/16/32/64/64x, epu8/16/32/64, ...) instead of a flat intrinsic list.
+_simd_family() {
+    local tok="$1"
+    local pattern label kind
+    case "$tok" in
+        ep[iu][0-9]*|ep[iu][0-9]*x) pattern='ep[iu][0-9]+x?$'; label="ep*  (extended-packed integer element type)"; kind="ep" ;;
+        pi[0-9]*)       pattern='pi[0-9]+$';       label="pi*  (packed integer, MMX)"; kind="pi" ;;
+        si[0-9]*)       pattern='si[0-9]+$';       label="si*  (generic integer vector width)"; kind="si" ;;
+        mask[0-9]*)     pattern='mask[0-9]+$';     label="mask*  (mask register width)"; kind="mask" ;;
+        [iu][0-9]*)     pattern='[iu][0-9]+$';     label="i*/u*  (scalar integer sign/width)"; kind="iu" ;;
+        p[sd]|s[sd])    pattern='[ps][sd]$';       label="ps/pd/ss/sd  (float precision, packed vs scalar)"; kind="float" ;;
+        mm|mm[0-9]*)    pattern='mm[0-9]*$';       label="mm*  (vector width)"; kind="mm" ;;
+        *)              pattern="${tok}\$";        label="$tok"; kind="" ;;
+    esac
+
+    local names siblings
+    names=$(xmlstarlet sel --novalid -t -m "//intrinsic" -v "@name" -n "$IXML" 2>/dev/null)
+    if [ "$kind" = "mm" ]; then
+        siblings=$(grep -oE "^_(${pattern})" <<< "$names" | sed 's/^_//' | sort -Vu)
+    else
+        siblings=$(grep -oE "_(${pattern})" <<< "$names" | sed 's/^_//' | sort -Vu)
+    fi
+    [ -z "$siblings" ] && siblings="$tok"
+
+    printf "${CH}Suffix family: %s${CR}\n\n" "$label"
+
+    printf "  ${CK}morphology${CR}\n"
+    case "$kind" in
+        ep)
+            printf "    ${CV}ep${CR}        ${CD}extended packed (element-wise operand)${CR}\n"
+            printf "    ${CV}i / u${CR}     ${CD}signed / unsigned integer${CR}\n"
+            printf "    ${CV}<N>${CR}       ${CD}element width in bits${CR}\n"
+            printf "    ${CV}x${CR}         ${CD}long-long / imm64-arg overload (same width, alt C signature)${CR}\n"
+            ;;
+        pi)
+            printf "    ${CV}pi${CR}        ${CD}packed integer (MMX, 64-bit register)${CR}\n"
+            printf "    ${CV}<N>${CR}       ${CD}element width in bits${CR}\n"
+            ;;
+        si)
+            printf "    ${CV}si${CR}        ${CD}signed integer -- opaque vector, element width${CR}\n"
+            printf "              ${CD}unspecified (used for casts/logic/generic loads,${CR}\n"
+            printf "              ${CD}not per-element math)${CR}\n"
+            printf "    ${CV}<N>${CR}       ${CD}width in bits of the whole vector (>=128), or a${CR}\n"
+            printf "              ${CD}scalar integer width (<128)${CR}\n"
+            ;;
+        mask)
+            printf "    ${CV}mask${CR}      ${CD}mask register (__mmaskN, one bit per lane)${CR}\n"
+            printf "    ${CV}<N>${CR}       ${CD}number of mask bits${CR}\n"
+            ;;
+        iu)
+            printf "    ${CV}i / u${CR}     ${CD}signed / unsigned${CR}\n"
+            printf "    ${CV}<N>${CR}       ${CD}scalar integer width in bits${CR}\n"
+            ;;
+        float)
+            printf "    ${CV}p / s${CR} (1st letter)   ${CD}packed (multiple elements) / scalar${CR}\n"
+            printf "                         ${CD}(one element, rest of vector untouched)${CR}\n"
+            printf "    ${CV}s / d${CR} (2nd letter)   ${CD}single- / double-precision IEEE-754${CR}\n"
+            ;;
+        mm)
+            printf "    ${CV}mm${CR}        ${CD}vector register (\"mm\" traces back to MMX,${CR}\n"
+            printf "              ${CD}Intel's original \"MultiMedia eXtension\" regs)${CR}\n"
+            printf "    ${CV}<N>${CR}       ${CD}vector width in bits (omitted = 128, i.e. SSE)${CR}\n"
+            ;;
+    esac
+
+    local qdef qmorph
+    qdef=$(_simd_token_def "$tok")
+    qmorph=$(_simd_morphs "$tok" "$kind")
+    printf "\n  ${CK}%s${CR} = ${CV}%s${CR}\n" "$tok" "$qmorph"
+    printf "  → ${CD}%s${CR}\n" "$(_simd_trunc "$qdef" "$(_simd_budget 4)")"
+
+    # 2-axis grid for families with real sign/precision structure; a flat
+    # width list for the rest (they're fully explained by the legend above).
+    case "$kind" in
+        ep)
+            local -a widths=()
+            local s w
+            while IFS= read -r s; do
+                w="${s:3}"
+                [[ " ${widths[*]-} " == *" $w "* ]] || widths+=("$w")
+            done <<< "$siblings"
+            IFS=$'\n' widths=($(printf '%s\n' "${widths[@]}" | sort -V)); unset IFS
+
+            printf "\n  ${CK}by sign / width${CR}\n"
+            printf "    %-10s" ""
+            for w in "${widths[@]}"; do _simd_cell "$w" 8 "$CD"; done
+            printf "\n    %-10s" "signed"
+            for w in "${widths[@]}"; do
+                if grep -qxF "epi${w}" <<< "$siblings"; then _simd_cell "epi${w}" 8
+                else _simd_cell "-" 8 "$CD"; fi
+            done
+            printf "\n    %-10s" "unsigned"
+            for w in "${widths[@]}"; do
+                if grep -qxF "epu${w}" <<< "$siblings"; then _simd_cell "epu${w}" 8
+                else _simd_cell "-" 8 "$CD"; fi
+            done
+            printf "\n"
+            ;;
+        iu)
+            local -a widths=()
+            local s w
+            while IFS= read -r s; do
+                w="${s:1}"
+                [[ " ${widths[*]-} " == *" $w "* ]] || widths+=("$w")
+            done <<< "$siblings"
+            IFS=$'\n' widths=($(printf '%s\n' "${widths[@]}" | sort -V)); unset IFS
+
+            printf "\n  ${CK}by sign / width${CR}\n"
+            printf "    %-10s" ""
+            for w in "${widths[@]}"; do _simd_cell "$w" 8 "$CD"; done
+            printf "\n    %-10s" "signed"
+            for w in "${widths[@]}"; do
+                if grep -qxF "i${w}" <<< "$siblings"; then _simd_cell "i${w}" 8
+                else _simd_cell "-" 8 "$CD"; fi
+            done
+            printf "\n    %-10s" "unsigned"
+            for w in "${widths[@]}"; do
+                if grep -qxF "u${w}" <<< "$siblings"; then _simd_cell "u${w}" 8
+                else _simd_cell "-" 8 "$CD"; fi
+            done
+            printf "\n"
+            ;;
+        float)
+            printf "\n  ${CK}by form / precision${CR}\n"
+            printf "    %-10s" ""; _simd_cell "single" 8 "$CD"; _simd_cell "double" 8 "$CD"; printf "\n"
+            printf "    %-10s" "packed"; _simd_cell "ps" 8; _simd_cell "pd" 8; printf "\n"
+            printf "    %-10s" "scalar"; _simd_cell "ss" 8; _simd_cell "sd" 8; printf "\n"
+            ;;
+        *)
+            printf "\n  ${CK}by width${CR}\n"
+            awk '{ match($0, /^[a-zA-Z]+/); p=substr($0,RSTART,RLENGTH); d=substr($0,RLENGTH+1);
+                   g[p] = g[p] (g[p]=="" ? "" : ", ") (d=="" ? "-" : d) }
+                 END { for (p in g) printf "    %-6s : %s\n", p, g[p] }' <<< "$siblings" | sort \
+                | while IFS= read -r row; do
+                    printf "    ${CV}%s${CR}\n" "${row#    }"
+                  done
+            ;;
+    esac
+
+    local example
+    example=$(xmlstarlet sel --novalid -t -m "(//intrinsic[contains(@name,'_${tok}')])[1]" -v "@name" -n "$IXML" 2>/dev/null)
+    [ -n "$example" ] && printf "\n  ${CD}example:${CR} ${CV}%s${CR}\n" "$example"
+    printf "\n${CD}More: 'doc simd list <tech>'  or  'doc simd load' (op breakdown)${CR}\n"
+}
+
+# Decompose a set of intrinsic names into vector/func/suffix axes and print
+# a delimited cheatsheet. Reads "name|tech|category" lines on stdin.
+_simd_concept() {
+    local query="$1" mode="$2" lc="$3"
+    local raw
+    raw=$(awk -F'|' '
+    {
+        name=$1; tech=$2; cat=$3
+        techs[tech]=1; cats[cat]=1; catcount[cat]++
+        count++
+
+        nm = name
+        sub(/^_/, "", nm)
+        n = split(nm, parts, "_")
+        i = 2
+        vector = parts[1]
+        if (vector !~ /^mm(256|512)?$/) { vector = "(scalar)"; i = 1 }
+        mask = ""
+        if (parts[i]=="mask" || parts[i]=="maskz") { mask = parts[i]; i++ }
+        suffix = ""
+        opend = n
+        if (i <= n) {
+            last = parts[n]
+            if (last ~ /^(ep[iu][0-9]+x?|pi[0-9]+|si[0-9]+|mask[0-9]+|[iu][0-9]+|p[sd]|s[sd]|ph|bf16)$/) { suffix = last; opend = n - 1 }
+        }
+        optype = ""
+        for (j=i; j<=opend; j++) optype = optype (optype=="" ? "" : "_") parts[j]
+        if (optype == "") optype = "(base)"
+        if (mask != "") optype = mask "_" optype
+
+        vectors[vector]=1
+        types[optype]=1
+        if (!(optype in typeex) || length(name) < length(typeex[optype])) typeex[optype] = name
+        if (suffix != "") {
+            suffixes[suffix]=1
+            if (!(suffix in suffex) || length(name) < length(suffex[suffix])) suffex[suffix] = name
+        }
+
+        score = length(name) - (index(name,"512") ? 1000 : 0)
+        if (pattern == "" || score < bestscore) {
+            bestscore = score; pattern = name
+            pvector = vector; ptype = optype; psuffix = (suffix=="" ? "-" : suffix)
+        }
+    }
+    END {
+        printf "COUNT\t%d\n", count
+        printf "TECHS\t";    first=1; for (k in techs)    { printf "%s%s", (first?"":","), k; first=0 }; printf "\n"
+        printf "CATS\t";     first=1; for (k in cats)     { printf "%s%s", (first?"":","), k; first=0 }; printf "\n"
+        bestcat=""; bestcatn=0
+        for (k in catcount) { if (catcount[k] > bestcatn) { bestcatn = catcount[k]; bestcat = k } }
+        printf "BESTCAT\t%s\n", bestcat
+        printf "VECTORS\t";  first=1; for (k in vectors)  { printf "%s%s", (first?"":","), k; first=0 }; printf "\n"
+        printf "TYPES\t";    first=1; for (k in types)    { printf "%s%s", (first?"":","), k; first=0 }; printf "\n"
+        printf "SUFFIXES\t"; first=1; for (k in suffixes) { printf "%s%s", (first?"":","), k; first=0 }; printf "\n"
+        printf "TYPEEX\t";   first=1; for (k in typeex)   { printf "%s%s=%s", (first?"":";"), k, typeex[k]; first=0 }; printf "\n"
+        printf "SUFFEX\t";   first=1; for (k in suffex)   { printf "%s%s=%s", (first?"":";"), k, suffex[k]; first=0 }; printf "\n"
+        printf "PATTERN\t%s\n", pattern
+        printf "PVECTOR\t%s\n", pvector
+        printf "PTYPE\t%s\n", ptype
+        printf "PSUFFIX\t%s\n", psuffix
+    }
+    ')
+
+    local cnt="" techs="" cats="" bestcat="" vectors="" types="" suffixes="" pattern="" pvector="" ptype="" psuffix="" typeex_raw="" suffex_raw=""
+    while IFS=$'\t' read -r key val; do
+        case "$key" in
+            COUNT)    cnt="$val" ;;
+            TECHS)    techs="$val" ;;
+            CATS)     cats="$val" ;;
+            BESTCAT)  bestcat="$val" ;;
+            VECTORS)  vectors="$val" ;;
+            TYPES)    types="$val" ;;
+            SUFFIXES) suffixes="$val" ;;
+            TYPEEX)   typeex_raw="$val" ;;
+            SUFFEX)   suffex_raw="$val" ;;
+            PATTERN)  pattern="$val" ;;
+            PVECTOR)  pvector="$val" ;;
+            PTYPE)    ptype="$val" ;;
+            PSUFFIX)  psuffix="$val" ;;
+        esac
+    done <<< "$raw"
+
+    vectors=$(tr ',' '\n' <<< "$vectors" | sort -V | paste -sd,)
+    types=$(tr ',' '\n' <<< "$types" | sort | paste -sd,)
+    suffixes=$(tr ',' '\n' <<< "$suffixes" | sort | paste -sd,)
+
+    local -A TYPE_EXAMPLE SUFF_EXAMPLE
+    local pair k v
+    IFS=';' read -ra pair <<< "$typeex_raw"
+    for k in "${pair[@]}"; do
+        [ -z "$k" ] && continue
+        TYPE_EXAMPLE["${k%%=*}"]="${k#*=}"
+    done
+    IFS=';' read -ra pair <<< "$suffex_raw"
+    for k in "${pair[@]}"; do
+        [ -z "$k" ] && continue
+        SUFF_EXAMPLE["${k%%=*}"]="${k#*=}"
+    done
+
+    local mode_label
+    case "$mode" in
+        name)       mode_label="name match" ;;
+        category)   mode_label="category match" ;;
+        definition) mode_label="definition match" ;;
+    esac
+
+    local header_prefix="${query^^}  (${cnt} intrinsics, ${mode_label}, tech="
+    printf "${CH}%s${CR}  (%s intrinsics, %s, tech=%s)\n\n" "${query^^}" "$cnt" "$mode_label" \
+        "$(_simd_join_trunc "$techs" "$(_simd_budget $((${#header_prefix} + 1)) 15)")"
+    printf "  ${CK}vector${CR} : %s\n" "$(_simd_join_trunc "$vectors" "$(_simd_budget 12)")"
+    printf "  ${CK}func${CR}   : %s\n" "$(_simd_join_trunc "$types" "$(_simd_budget 12)")"
+    printf "  ${CK}suffix${CR} : %s\n" "$(_simd_join_trunc "$suffixes" "$(_simd_budget 12)")"
+
+    local -a vtoks ttoks stoks
+    IFS=',' read -ra vtoks <<< "$vectors"
+    IFS=',' read -ra ttoks <<< "$types"
+    IFS=',' read -ra stoks <<< "$suffixes"
+
+    local t def ex
+
+    printf "\n  ${CH}vector${CR}\n"
+    for t in "${vtoks[@]}"; do
+        [ -z "$t" ] && continue
+        def=$(_simd_token_def "$t")
+        printf "    ${CV}%-12s${CR} ${CD}%s${CR}\n" "$t" "$(_simd_trunc "$def" "$(_simd_budget 18)")"
+    done
+
+    # Collapse mask_/maskz_ variants of the same base op into one row --
+    # they differ only by the writemask modifier, not by what they do.
+    printf "\n  ${CH}func${CR}  ${CD}(mask/maskz = writemask variants also exist)${CR}\n"
+    local -A CORE_MASK CORE_MASKZ CORE_EX
+    local -a core_order=()
+    for t in "${ttoks[@]}"; do
+        [ -z "$t" ] && continue
+        local core="$t" tag=""
+        case "$t" in
+            mask_*)  core="${t#mask_}"; tag="mask" ;;
+            maskz_*) core="${t#maskz_}"; tag="maskz" ;;
+        esac
+        [[ " ${core_order[*]-} " == *" $core "* ]] || core_order+=("$core")
+        case "$tag" in
+            mask)  CORE_MASK[$core]=1 ;;
+            maskz) CORE_MASKZ[$core]=1 ;;
+        esac
+        if [ -z "${CORE_EX[$core]:-}" ] || [ -z "$tag" ]; then
+            CORE_EX[$core]="${TYPE_EXAMPLE[$t]:-}"
+        fi
+    done
+    local core flags
+    for core in "${core_order[@]}"; do
+        flags=""
+        [ -n "${CORE_MASK[$core]:-}" ]  && flags+=" +mask"
+        [ -n "${CORE_MASKZ[$core]:-}" ] && flags+=" +maskz"
+        ex="${CORE_EX[$core]:-}"
+        if [ -n "$ex" ]; then
+            def=$(_simd_mine_named "$ex")
+        else
+            def=$(_simd_token_def "$core")
+        fi
+        printf "    ${CV}%s${CR}%s\n" "$core" "$flags"
+        printf "      ${CD}%s${CR}\n" "$(_simd_trunc "$def" "$(_simd_budget 6)")"
+    done
+
+    printf "\n  ${CH}suffix${CR}\n"
+    for t in "${stoks[@]}"; do
+        [ -z "$t" ] && continue
+        if _simd_is_suffix "$t" && [ "$t" != "ph" ] && [ "$t" != "bf16" ]; then
+            def=$(_simd_token_def "$t")
+        else
+            ex="${SUFF_EXAMPLE[$t]:-}"
+            if [ -n "$ex" ]; then
+                def=$(_simd_mine_named "$ex")
+            else
+                def=$(_simd_token_def "$t")
+            fi
+        fi
+        printf "    ${CV}%-12s${CR} ${CD}%s${CR}\n" "$t" "$(_simd_trunc "$def" "$(_simd_budget 18)")"
+    done
+
+    printf "\n  ${CD}naming pattern:${CR} _<vector>_[mask|maskz_]<func>_<suffix>\n"
+    printf "  ${CD}example:${CR}        ${CV}%s${CR}\n" "$pattern"
+    printf "                  ${CK}vector${CR}=${CV}%s${CR}  ${CK}func${CR}=${CV}%s${CR}  ${CK}suffix${CR}=${CV}%s${CR}\n" \
+        "$pvector" "$(_simd_trunc "$ptype" "$(_simd_budget 50 15)")" "$psuffix"
+
+    if [ "$mode" = "name" ]; then
+        local rel
+        rel=$(xmlstarlet sel --novalid -t \
+            -m "//intrinsic[contains(translate(description,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'${lc}')][not(contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'${lc}'))]" \
+            -v "@name" -o "  [" -v "category[1]" -o "]" -n "$IXML" 2>/dev/null | sort -u | head -8)
+        if [ -n "$rel" ]; then
+            printf "\n${CH}Related (by definition, not literally named '%s'):${CR}\n" "$query"
+            sed -E "s/^(_[a-zA-Z0-9_]+)(  \[.*\])$/${CV}\1${CR}${CD}\2${CR}/" <<< "$rel" | sed 's/^/  /'
+        fi
+    fi
+
+    printf "\n${CD}More: 'doc simd list <tech> %s'${CR}\n" "$(_simd_trunc "${bestcat:-${cats%%,*}}" "$(_simd_budget 40)")"
+}
+
 # ─── simd doc ────────────────────────────────────────────────────────────────
 simd_doc() {
     need_file "$IXML" "simd"
@@ -431,7 +967,7 @@ simd_doc() {
                "${cat_filter:+ category~$cat_filter}"
         xmlstarlet sel --novalid -t \
             -m "//intrinsic[@tech='${tech}']${cat_filter:+[contains(translate(category,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'${cat_filter,,}')]}" \
-            -v "@name" -o "  " -v "category" -o "  [" -v "CPUID" -o "]" -n \
+            -v "@name" -o "  " -v "category[1]" -o "  [" -v "CPUID" -o "]" -n \
             "$IXML" 2>/dev/null | sort | less -RF
         return
     fi
@@ -449,7 +985,7 @@ simd_doc() {
                 -v "@name" -n "$IXML" 2>/dev/null | head -20 | sed 's/^/  /'
             return 1
         fi
-        _print_intrinsic "$query"
+        { _print_intrinsic "$query"; _simd_decompose_name "$query"; } | less -RF
         return
     fi
 
@@ -488,46 +1024,154 @@ simd_doc() {
         return
     fi
 
-    # ── fuzzy partial match on intrinsic name ─────────────────────────────
-    local fuzzy
-    fuzzy=$(xmlstarlet sel --novalid -t \
-        -m "//intrinsic[contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'${query,,}')]" \
-        -v "@name" -n "$IXML" 2>/dev/null | head -30)
-
-    if [ -n "$fuzzy" ]; then
-        local count
-        count=$(echo "$fuzzy" | wc -l)
-        if [ "$count" -eq 1 ]; then
-            { _print_intrinsic "$(echo "$fuzzy" | head -1)"; } | less -RF
-        else
-            printf "${CK}Multiple matches for '%s' (%d):${CR}\n" "$query" "$count"
-            echo "$fuzzy" | sed 's/^/  /'
-            printf "\n${CD}Use exact name for full details.${CR}\n"
-        fi
+    # ── exact-token lookup: bare vector-width or element-suffix token ────
+    local lc="${query,,}"
+    if _simd_is_suffix "$lc" || _simd_is_vector "$lc"; then
+        { _simd_family "$lc"; } | less -RF
         return
     fi
 
-    printf "${CK}No match for '%s'.${CR}\n" "$query"
-    printf "Try:  doc simd list avx2\n      doc simd list avx512\n"
+    # ── concept search: name (primary), then category, then definition ──
+    local matches label
+    matches=$(xmlstarlet sel --novalid -t \
+        -m "//intrinsic[contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'${lc}')]" \
+        -v "@name" -o "|" -v "@tech" -o "|" -v "category[1]" -n "$IXML" 2>/dev/null)
+    label="name"
+
+    if [ -z "$matches" ]; then
+        matches=$(xmlstarlet sel --novalid -t \
+            -m "//intrinsic[contains(translate(category,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'${lc}')]" \
+            -v "@name" -o "|" -v "@tech" -o "|" -v "category[1]" -n "$IXML" 2>/dev/null)
+        label="category"
+    fi
+
+    if [ -z "$matches" ]; then
+        matches=$(xmlstarlet sel --novalid -t \
+            -m "//intrinsic[contains(translate(description,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'${lc}')]" \
+            -v "@name" -o "|" -v "@tech" -o "|" -v "category[1]" -n "$IXML" 2>/dev/null)
+        label="definition"
+    fi
+
+    if [ -z "$matches" ]; then
+        printf "${CK}No match for '%s'.${CR}\n" "$query"
+        printf "Try:  doc simd list avx2\n      doc simd list avx512\n"
+        return 1
+    fi
+
+    local count
+    count=$(echo "$matches" | wc -l)
+    if [ "$count" -eq 1 ]; then
+        local single_name
+        single_name=$(cut -d'|' -f1 <<< "$matches")
+        { _print_intrinsic "$single_name"; _simd_decompose_name "$single_name"; } | less -RF
+        return
+    fi
+
+    { _simd_concept "$query" "$label" "$lc" <<< "$matches"; } | less -RF
 }
 
 _print_intrinsic() {
     local name="$1"
-    xmlstarlet sel --novalid -t \
+    # xmlstarlet -o serializes as XML text: mangles raw ESC (0x1B) into
+    # U+FFFD. Never embed ANSI color in a -o/-v template. Emit plain text
+    # with a sentinel separator, colorize after in bash instead.
+    local raw
+    raw=$(xmlstarlet sel --novalid -t \
         -m "//intrinsic[@name='${name}']" \
-        -o "────────────────────────────────────────────────────────────" -n \
-        -o "Intrinsic : " -v "@name" -n \
-        -o "Tech      : " -v "@tech" -o "  CPUID: " -v "CPUID" -n \
-        -o "Header    : " -v "header" -n \
-        -o "Category  : " -v "category" -n \
-        -o "Return    : " -v "return/@type" -n \
-        -m "parameter" -o "Param     : " -v "@type" -o "  " -v "@varname" -n -b \
-        -o "ASM       : " -m "instruction" -v "@name" -o "  " -b -n \
+        -o "@@SEP@@" -n \
+        -o "Intrinsic  : " -v "@name" -n \
+        -o "Tech       : " -v "@tech" -o "  CPUID: " -v "CPUID" -n \
+        -o "Header     : " -v "header" -n \
+        -o "Category   : " -v "category[1]" -n \
+        -o "Return     : " -v "return/@type" -n \
+        -m "parameter" -o "Param      : " -v "@type" -o "  " -v "@varname" -n -b \
+        -o "ASM        : " -m "instruction" -v "@name" -o "  " -b -n \
         -o "Description: " -v "description" -n \
-        -o "Operation :" -n \
+        -o "Operation  :" -n \
         -v "operation" -n \
-        -o "────────────────────────────────────────────────────────────" -n \
-        "$IXML" 2>/dev/null
+        -o "@@SEP@@" -n \
+        "$IXML" 2>/dev/null)
+
+    local line
+    while IFS= read -r line; do
+        case "$line" in
+            "@@SEP@@") printf "%s\n" "$SEP" ;;
+            Intrinsic\ *)  printf "${CK}%s${CR}${CV}%s${CR}\n" "${line%%:*}:" "${line#*:}" ;;
+            Category\ *)   printf "${CK}%s${CR}${CV}%s${CR}\n" "${line%%:*}:" "${line#*:}" ;;
+            Tech\ *)
+                local rest techval cpuval
+                rest="${line#*: }"
+                techval="${rest%%  CPUID:*}"
+                cpuval="${rest##*CPUID: }"
+                printf "${CK}Tech${CR}       : ${CV}%s${CR}  ${CK}CPUID${CR}: ${CV}%s${CR}\n" "$techval" "$cpuval"
+                ;;
+            ASM\ *)        printf "${CK}%s${CR}${CP}%s${CR}\n" "${line%%:*}:" "${line#*:}" ;;
+            Header\ *|Return\ *|Param\ *|Operation\ *)
+                printf "${CK}%s${CR}%s\n" "${line%%:*}:" "${line#*:}" ;;
+            Description*)
+                local label val labelw wfirst wline
+                label="${line%%:*}:"
+                val="${line#*: }"
+                labelw=$((${#label} + 1))
+                wfirst=1
+                while IFS= read -r wline; do
+                    if [ "$wfirst" -eq 1 ]; then
+                        printf "${CK}%s${CR} %s\n" "$label" "$wline"
+                        wfirst=0
+                    else
+                        printf "%*s%s\n" "$labelw" "" "$wline"
+                    fi
+                done < <(fold -s -w "$(_simd_budget "$labelw" 30)" <<< "$val")
+                ;;
+            *)
+                while IFS= read -r wline; do
+                    printf "${CD}%s${CR}\n" "$wline"
+                done < <(fold -s -w "$TERM_COLS" <<< "$line")
+                ;;
+        esac
+    done <<< "$raw"
+}
+
+# Same vector/func/suffix split as the concept breakdown, for one exact
+# name -- "doc simd _mm_store_si128" gets the same treatment as "doc simd
+# load" or "doc simd si128".
+_simd_decompose_name() {
+    local name="$1"
+    local nm="${name#_}"
+    local -a parts
+    IFS='_' read -ra parts <<< "$nm"
+    local n=${#parts[@]}
+    local i=1 vector="${parts[0]}"
+    if [[ ! "$vector" =~ ^mm(256|512)?$ ]]; then
+        vector="(scalar)"
+        i=0
+    fi
+    local mask=""
+    if [ "${parts[$i]:-}" = "mask" ] || [ "${parts[$i]:-}" = "maskz" ]; then
+        mask="${parts[$i]}"
+        i=$((i + 1))
+    fi
+    local suffix="" opend=$((n - 1))
+    if [ "$i" -le $((n - 1)) ]; then
+        local last="${parts[$((n - 1))]}"
+        _simd_is_suffix "$last" && { suffix="$last"; opend=$((n - 2)); }
+    fi
+    local optype="" j
+    for ((j = i; j <= opend; j++)); do
+        optype+="${optype:+_}${parts[$j]}"
+    done
+    [ -z "$optype" ] && optype="(base)"
+    [ -n "$mask" ] && optype="${mask}_${optype}"
+
+    printf "\n${CH}Decomposition${CR}\n"
+    printf "  ${CK}vector${CR} : ${CV}%-10s${CR} ${CD}%s${CR}\n" \
+        "$vector" "$(_simd_trunc "$(_simd_token_def "$vector")" "$(_simd_budget 30)")"
+    printf "  ${CK}func${CR}   : ${CV}%-10s${CR} ${CD}%s${CR}\n" \
+        "$(_simd_trunc "$optype" 10)" "$(_simd_trunc "$(_simd_mine_named "$name")" "$(_simd_budget 30)")"
+    if [ -n "$suffix" ]; then
+        printf "  ${CK}suffix${CR} : ${CV}%-10s${CR} ${CD}%s${CR}\n" \
+            "$suffix" "$(_simd_trunc "$(_simd_token_def "$suffix")" "$(_simd_budget 30)")"
+    fi
 }
 
 # ─── reg_doc ─────────────────────────────────────────────────────────────────
