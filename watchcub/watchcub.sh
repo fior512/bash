@@ -18,9 +18,16 @@
 # Profile file: --profile PATH | -p PATH, or $WATCHCUB_PROFILE. Never
 # auto-loaded; no file given = built-in defaults.
 #
-# Flags (each maps to a profile key of the same name):
-#   --turbo=keep|off       --pinfreq=on|off      --cstate=hold|keep
-#   --smt=keep|off         --thp=always|never|keep
+# Flags (each maps to a profile key of the same name; --profile picks the file):
+#   --turbo=keep|off       --pinfreq=on|off      --pinfreq-target=max|<kHz>
+#   --cstate=hold|keep     --smt=keep|off        --thp=always|never|keep
+#   --thp-defrag=never|always|madvise|keep
+#   --governor=<gov>|keep  --epp=<epp>|keep
+#   --swappiness=<n>|keep  --numa-balancing=<n>|keep
+#   --aslr=<0|1|2>|keep    --nmi-watchdog=<n>|keep
+#   --drop-caches=on|off
+#   --nvidia-persist=on|off|keep  --nvidia-clock=max|keep
+#   --amdgpu-perf=<level>|keep    --rocm-perf=<level>|keep
 #   --temp-warn=<C>       --mem-max=<pct>       --load-max=<frac>
 #   --swap-max=<kB>        --dirty-max=<kB>      --freq-dip=<frac>
 #   --sample=<sec>         --logs=<dir>          --state=<dir>
@@ -35,27 +42,55 @@ set -u
 CPU_SYS=/sys/devices/system/cpu
 
 # ===================================================== configuration ========
-# keys + defaults + docs; 'profile new' generates from these, keep in sync
-CFG_KEYS=(TURBO PINFREQ CSTATE SMT THP
-          TEMP_WARN MEM_MAX LOAD_MAX SWAP_MAX DIRTY_MAX FREQ_DIP SAMPLE)
+# keys + defaults + docs; every key here works as a flag/env var
+CFG_KEYS=(TURBO PINFREQ PINFREQ_TARGET CSTATE SMT THP THP_DEFRAG GOVERNOR EPP
+          SWAPPINESS NUMA_BALANCING ASLR NMI_WATCHDOG DROP_CACHES
+          NVIDIA_PERSIST NVIDIA_CLOCK AMDGPU_PERF ROCM_PERF
+          TEMP_WARN MEM_MAX LOAD_MAX SWAP_MAX DIRTY_MAX FREQ_DIP SAMPLE LOGS STATE)
+# subset apply_bench() actually writes - the only keys a profile file may
+# set; 'profile new' generates from this, keep in sync with apply_bench()
+BENCH_KEYS=(TURBO PINFREQ PINFREQ_TARGET CSTATE SMT THP THP_DEFRAG GOVERNOR EPP
+            SWAPPINESS NUMA_BALANCING ASLR NMI_WATCHDOG DROP_CACHES
+            NVIDIA_PERSIST NVIDIA_CLOCK AMDGPU_PERF ROCM_PERF STATE)
 declare -A CFG=(
-  [TURBO]=keep   [PINFREQ]=on   [CSTATE]=hold  [SMT]=keep  [THP]=always
+  [TURBO]=keep   [PINFREQ]=on   [PINFREQ_TARGET]=max   [CSTATE]=hold  [SMT]=keep
+  [THP]=always   [THP_DEFRAG]=never
+  [GOVERNOR]=performance [EPP]=performance
+  [SWAPPINESS]=1 [NUMA_BALANCING]=0 [ASLR]=0 [NMI_WATCHDOG]=0
+  [DROP_CACHES]=on
+  [NVIDIA_PERSIST]=on [NVIDIA_CLOCK]=max [AMDGPU_PERF]=high [ROCM_PERF]=high
   [TEMP_WARN]=65 [MEM_MAX]=40   [LOAD_MAX]=0.05
   [SWAP_MAX]=65536 [DIRTY_MAX]=102400 [FREQ_DIP]=0.97 [SAMPLE]=0.5
+  [LOGS]=/var/tmp/watchcub-logs [STATE]=/var/tmp/watchcub-state
 )
 declare -A CFG_DOC=(
-  [TURBO]="keep = full boost clocks (highest perf) | off = fixed base clock (max reproducibility)"
-  [PINFREQ]="on = floor ALL cores at max freq (all-core throughput) | off = idle cores idle (max single-core boost)"
-  [CSTATE]="hold = block deep C-states (lowest wake latency) | keep = allow CC6 (frees single-core boost budget on Zen)"
-  [SMT]="keep = leave hyperthreading as-is | off = disable SMT for the session"
-  [THP]="always | never | keep - transparent hugepages mode"
-  [TEMP_WARN]="C - verify/run warn when hottest sensor reaches this"
-  [MEM_MAX]="percent - verify warns when used RAM exceeds this"
-  [LOAD_MAX]="fraction of nproc - verify warns when 1-min load exceeds this"
-  [SWAP_MAX]="kB - verify warns when swap in use exceeds this"
-  [DIRTY_MAX]="kB - verify warns when dirty pages exceed this"
-  [FREQ_DIP]="fraction - run warns when benchmark core dips below this x its max"
-  [SAMPLE]="seconds - freq/temp sampling interval during run"
+  [TURBO]="keep = full boost clocks (highest perf). off = fixed base clock (max reproducibility)"
+  [PINFREQ]="on = floor ALL cores at PINFREQ_TARGET (all-core throughput). off = idle cores idle (max single-core boost)"
+  [PINFREQ_TARGET]="max = pin to scaling_max_freq, or a kHz number. Used only when PINFREQ=on"
+  [CSTATE]="hold = block deep C-states (lowest wake latency). keep = allow CC6 (frees single-core boost budget on Zen)"
+  [SMT]="keep = leave hyperthreading as-is. off = disable SMT for the session"
+  [THP]="always | never | keep. Transparent hugepages mode"
+  [THP_DEFRAG]="never | always | madvise | keep. Transparent hugepages defrag mode"
+  [GOVERNOR]="cpufreq governor for every policy, or keep to leave as-is"
+  [EPP]="energy_performance_preference for every policy, or keep to leave as-is"
+  [SWAPPINESS]="vm.swappiness value, or keep to leave as-is"
+  [NUMA_BALANCING]="kernel.numa_balancing value, or keep to leave as-is"
+  [ASLR]="kernel.randomize_va_space value (0/1/2), or keep to leave as-is"
+  [NMI_WATCHDOG]="kernel.nmi_watchdog value, or keep to leave as-is"
+  [DROP_CACHES]="on = drop page cache once before bench. off = leave cache as-is"
+  [NVIDIA_PERSIST]="on|off|keep. NVIDIA persistence mode (nvidia-smi -pm)"
+  [NVIDIA_CLOCK]="max = lock SM+mem clocks to their max. keep = leave clocks as-is"
+  [AMDGPU_PERF]="value for power_dpm_force_performance_level (e.g. high, auto), or keep"
+  [ROCM_PERF]="value for rocm-smi --setperflevel (e.g. high, auto), or keep"
+  [TEMP_WARN]="C. verify/run warn when hottest sensor reaches this"
+  [MEM_MAX]="percent. verify warns when used RAM exceeds this"
+  [LOAD_MAX]="fraction of nproc. verify warns when 1-min load exceeds this"
+  [SWAP_MAX]="kB. verify warns when swap in use exceeds this"
+  [DIRTY_MAX]="kB. verify warns when dirty pages exceed this"
+  [FREQ_DIP]="fraction. run warns when benchmark core dips below this x its max"
+  [SAMPLE]="seconds. freq/temp sampling interval during run"
+  [LOGS]="dir. run log output directory (--logs=DIR / WATCHCUB_LOGS)"
+  [STATE]="dir. bench state save directory (--state=DIR / WATCHCUB_STATE)"
 )
 STATE_DIR="${WATCHCUB_STATE:-/var/tmp/watchcub-state}"
 LOG_ROOT="${WATCHCUB_LOGS:-/var/tmp/watchcub-logs}"
@@ -69,6 +104,9 @@ cfg_valid() {  # <key> <value> - enum validation, numbers pass through
       CSTATE)  case "$2" in hold|keep) return 0;; esac;;
       SMT)     case "$2" in keep|off) return 0;; esac;;
       THP)     case "$2" in always|never|keep) return 0;; esac;;
+      THP_DEFRAG) case "$2" in never|always|madvise|keep) return 0;; esac;;
+      DROP_CACHES) case "$2" in on|off) return 0;; esac;;
+      NVIDIA_PERSIST) case "$2" in on|off|keep) return 0;; esac;;
       *)       return 0;;
     esac; return 1
 }
@@ -88,17 +126,25 @@ load_profile() {  # <file>
         line="$(echo "$line" | tr -d '[:space:]')"
         [ -z "$line" ] && continue
         k=${line%%=*}; v=${line#*=}
-        case " ${CFG_KEYS[*]} " in *" $k "*) cfg_set "$k" "$v" "profile $1";;
-            *) echo "Unknown key '$k' in $1 (ignored)" >&2;; esac
+        case " ${BENCH_KEYS[*]} " in *" $k "*) cfg_set "$k" "$v" "profile $1";;
+            *) echo "Not a bench setting: '$k' in $1 (ignored - use a flag or WATCHCUB_$k instead)" >&2;; esac
     done < "$1"
 }
 finalize_cfg() {
     apply_env
     [ -n "$PROFILE_FILE" ] && load_profile "$PROFILE_FILE"
     local k; for k in "${!CLI_CFG[@]}"; do cfg_set "$k" "${CLI_CFG[$k]}" "flag"; done
+    LOG_ROOT=${CFG[LOGS]}; STATE_DIR=${CFG[STATE]}
     # short names used in the script body
     TURBO_MODE=${CFG[TURBO]};   PINFREQ_MODE=${CFG[PINFREQ]}
     CSTATE_MODE=${CFG[CSTATE]}; SMT_MODE=${CFG[SMT]}; THP_MODE=${CFG[THP]}
+    GOVERNOR_MODE=${CFG[GOVERNOR]}; EPP_MODE=${CFG[EPP]}
+    PINFREQ_TARGET_VAL=${CFG[PINFREQ_TARGET]}; THP_DEFRAG_MODE=${CFG[THP_DEFRAG]}
+    SWAPPINESS_VAL=${CFG[SWAPPINESS]}; NUMA_BALANCING_VAL=${CFG[NUMA_BALANCING]}
+    ASLR_VAL=${CFG[ASLR]}; NMI_WATCHDOG_VAL=${CFG[NMI_WATCHDOG]}
+    DROP_CACHES_MODE=${CFG[DROP_CACHES]}
+    NVIDIA_PERSIST_MODE=${CFG[NVIDIA_PERSIST]}; NVIDIA_CLOCK_MODE=${CFG[NVIDIA_CLOCK]}
+    AMDGPU_PERF_VAL=${CFG[AMDGPU_PERF]}; ROCM_PERF_VAL=${CFG[ROCM_PERF]}
     TEMP_WARN_C=${CFG[TEMP_WARN]}; TEMP_WARN=$(( TEMP_WARN_C * 1000 ))
     MEM_MAX_USED_PCT=${CFG[MEM_MAX]}; LOAD_MAX_FRAC=${CFG[LOAD_MAX]}
     SWAP_MAX_KB=${CFG[SWAP_MAX]};     DIRTY_MAX_KB=${CFG[DIRTY_MAX]}
@@ -380,15 +426,32 @@ write_sysinfo() {  # <outfile>
 }
 
 # =========================================================== profile =========
+# One line each: CPU model, RAM total, GPU(s), kernel version. Best-effort -
+# missing tools/files print "unknown", never abort profile generation.
+hw_summary() {
+    local cpu ram gpu kernel
+    cpu=$(grep -m1 'model name' /proc/cpuinfo | sed 's/.*: *//')
+    ram=$(awk '/MemTotal/{printf "%.1f GB", $2/1024/1024}' /proc/meminfo)
+    if have lspci; then
+        gpu=$(lspci | grep -iE 'vga|3d controller' | sed -E 's/^[0-9a-f:.]+ [^:]+: //' | awk '{printf "%s%s", (NR>1?"; ":""), $0}')
+    fi
+    kernel=$(uname -r)
+    printf 'CPU: %s\nRAM: %s\nGPU: %s\nKERNEL: %s\n' \
+        "${cpu:-unknown}" "${ram:-unknown}" "${gpu:-unknown}" "${kernel:-unknown}"
+}
+
 profile_new() {
     local path="${1:-./watchcub.profile}"
     [ -e "$path" ] && { echo "Refusing to overwrite existing $path" >&2; exit 1; }
-    { echo "# watchcub profile - generated $(ts)"
-      echo "# KEY=VALUE, # comments ignored. Not auto-loaded: pass it with"
-      echo "#   watchcub bench -p $path"
+    { echo "# watchcub profile. Generated $(ts)."
+      hw_summary | sed 's/^/# /'
       echo "#"
+      echo "# Format: KEY=VALUE. # starts a comment."
+      echo "# Not auto-loaded. Pass it: watchcub bench -p $path"
+      echo "# Covers every setting bench can change. Edit any value below."
+      echo "# Same keys as the CLI flags. This file replaces the bench preset."
       local k
-      for k in "${CFG_KEYS[@]}"; do
+      for k in "${BENCH_KEYS[@]}"; do
           printf '\n# %s\n%s=%s\n' "${CFG_DOC[$k]}" "$k" "${CFG[$k]}"
       done
     } > "$path"
@@ -397,10 +460,14 @@ profile_new() {
 profile_show() {
     info "Effective configuration"
     local k
-    for k in "${CFG_KEYS[@]}"; do log "$k" "${CFG[$k]}"; done
+    for k in "${CFG_KEYS[@]}"; do
+        case "$k" in
+          LOGS)  log "log dir"   "${CFG[$k]}";;
+          STATE) log "state dir" "${CFG[$k]}";;
+          *)     log "$k" "${CFG[$k]}";;
+        esac
+    done
     log "config source" "$PROFILE_SOURCE"
-    log "state dir" "$STATE_DIR"
-    log "log dir"   "$LOG_ROOT"
 }
 
 # ============================================================ bench ==========
@@ -412,8 +479,10 @@ apply_bench() {
     cfg_summary > "$STATE_DIR/profile"
 
     info "CPU governor & EPP"
-    for_each_policy scaling_governor performance
-    for_each_policy energy_performance_preference performance
+    if [ "$GOVERNOR_MODE" = keep ]; then log "scaling_governor" "kept as-is"
+    else for_each_policy scaling_governor "$GOVERNOR_MODE"; fi
+    if [ "$EPP_MODE" = keep ]; then log "energy_performance_preference" "kept as-is"
+    else for_each_policy energy_performance_preference "$EPP_MODE"; fi
 
     info "Turbo/boost (mode: $TURBO_MODE)"
     if [ "$TURBO_MODE" = off ]; then
@@ -427,12 +496,14 @@ apply_bench() {
         log "turbo/boost" "kept ON - full boost clocks (highest performance)"
     fi
 
-    info "Min-freq pinning (mode: $PINFREQ_MODE)"
+    info "Min-freq pinning (mode: $PINFREQ_MODE, target: $PINFREQ_TARGET_VAL)"
     if [ "$PINFREQ_MODE" = on ]; then
-        local p maxf
+        local p target
         for p in "$CPU_SYS"/cpufreq/policy*; do [ -d "$p" ] || continue
-            maxf=$(rd "$p/scaling_max_freq"); [ -n "$maxf" ] || continue
-            save_write "$p/scaling_min_freq" "$maxf" "$(basename "$p")_scaling_min_freq"; done
+            if [ "$PINFREQ_TARGET_VAL" = max ]; then target=$(rd "$p/scaling_max_freq")
+            else target=$PINFREQ_TARGET_VAL; fi
+            [ -n "$target" ] || continue
+            save_write "$p/scaling_min_freq" "$target" "$(basename "$p")_scaling_min_freq"; done
     else
         log "min freq" "not pinned - idle cores may idle (single-core boost headroom)"
     fi
@@ -447,16 +518,23 @@ apply_bench() {
     fi
 
     info "Kernel & memory"
-    save_sysctl vm.swappiness 1
-    save_sysctl kernel.numa_balancing 0
-    save_sysctl kernel.randomize_va_space 0
-    save_sysctl kernel.nmi_watchdog 0
+    [ "$SWAPPINESS_VAL" = keep ]     || save_sysctl vm.swappiness "$SWAPPINESS_VAL"
+    [ "$NUMA_BALANCING_VAL" = keep ] || save_sysctl kernel.numa_balancing "$NUMA_BALANCING_VAL"
+    [ "$ASLR_VAL" = keep ]           || save_sysctl kernel.randomize_va_space "$ASLR_VAL"
+    [ "$NMI_WATCHDOG_VAL" = keep ]   || save_sysctl kernel.nmi_watchdog "$NMI_WATCHDOG_VAL"
     case "$THP_MODE" in
       keep) log "THP" "kept as-is";;
-      *)  save_write /sys/kernel/mm/transparent_hugepage/enabled "$THP_MODE" thp_enabled
-          save_write /sys/kernel/mm/transparent_hugepage/defrag  never thp_defrag;;
+      *)    save_write /sys/kernel/mm/transparent_hugepage/enabled "$THP_MODE" thp_enabled;;
     esac
-    sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null && log "page cache" "dropped"
+    case "$THP_DEFRAG_MODE" in
+      keep) log "THP defrag" "kept as-is";;
+      *)    save_write /sys/kernel/mm/transparent_hugepage/defrag "$THP_DEFRAG_MODE" thp_defrag;;
+    esac
+    if [ "$DROP_CACHES_MODE" = on ]; then
+        sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null && log "page cache" "dropped"
+    else
+        log "page cache" "left as-is"
+    fi
 
     info "SMT (mode: $SMT_MODE)"
     if [ "$SMT_MODE" = off ]; then save_write "$CPU_SYS/smt/control" off smt_control
@@ -464,17 +542,35 @@ apply_bench() {
 
     info "GPU"
     if have nvidia-smi; then
-        nvidia-smi -pm 1 >/dev/null 2>&1 && log "NVIDIA persistence" "on"
-        local msm mmem
-        msm=$(nvidia-smi --query-gpu=clocks.max.sm     --format=csv,noheader,nounits 2>/dev/null | head -1)
-        mmem=$(nvidia-smi --query-gpu=clocks.max.memory --format=csv,noheader,nounits 2>/dev/null | head -1)
-        [ -n "${msm:-}" ]  && nvidia-smi -lgc "$msm"  >/dev/null 2>&1 && { touch "$STATE_DIR/nvidia_locked"; log "NVIDIA SM clock" "locked ${msm}MHz"; }
-        [ -n "${mmem:-}" ] && nvidia-smi -lmc "$mmem" >/dev/null 2>&1 && log "NVIDIA mem clock" "locked ${mmem}MHz"
+        case "$NVIDIA_PERSIST_MODE" in
+          keep) log "NVIDIA persistence" "kept as-is";;
+          on)   nvidia-smi -pm 1 >/dev/null 2>&1 && log "NVIDIA persistence" "on";;
+          off)  nvidia-smi -pm 0 >/dev/null 2>&1 && log "NVIDIA persistence" "off";;
+        esac
+        if [ "$NVIDIA_CLOCK_MODE" = max ]; then
+            local msm mmem
+            msm=$(nvidia-smi --query-gpu=clocks.max.sm     --format=csv,noheader,nounits 2>/dev/null | head -1)
+            mmem=$(nvidia-smi --query-gpu=clocks.max.memory --format=csv,noheader,nounits 2>/dev/null | head -1)
+            [ -n "${msm:-}" ]  && nvidia-smi -lgc "$msm"  >/dev/null 2>&1 && { touch "$STATE_DIR/nvidia_locked"; log "NVIDIA SM clock" "locked ${msm}MHz"; }
+            [ -n "${mmem:-}" ] && nvidia-smi -lmc "$mmem" >/dev/null 2>&1 && log "NVIDIA mem clock" "locked ${mmem}MHz"
+        else
+            log "NVIDIA clocks" "kept as-is"
+        fi
     fi
     local c
-    for c in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-        [ -e "$c" ] && save_write "$c" high "amdgpu_$(echo "$c"|grep -o 'card[0-9]*')_perf"; done
-    have rocm-smi && rocm-smi --setperflevel high >/dev/null 2>&1 && log "rocm-smi perflevel" "high"
+    if [ "$AMDGPU_PERF_VAL" = keep ]; then
+        log "amdgpu perf level" "kept as-is"
+    else
+        for c in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
+            [ -e "$c" ] && save_write "$c" "$AMDGPU_PERF_VAL" "amdgpu_$(echo "$c"|grep -o 'card[0-9]*')_perf"; done
+    fi
+    if have rocm-smi; then
+        if [ "$ROCM_PERF_VAL" = keep ]; then
+            log "rocm-smi perflevel" "kept as-is"
+        else
+            rocm-smi --setperflevel "$ROCM_PERF_VAL" >/dev/null 2>&1 && log "rocm-smi perflevel" "$ROCM_PERF_VAL"
+        fi
+    fi
 
     info "Done - now: sudo $0 verify   then: sudo $0 run -- <benchmark cmd>"
 }
@@ -702,8 +798,15 @@ usage() {
 Usage: sudo $0 <command> [flags] [-- benchmark-cmd]
 Commands: status | cpu | core | bench | verify | run -- <cmd> | restore
           profile new [path] | profile show | trace-unlock | trace-lock
-Flags:    --turbo=keep|off --pinfreq=on|off --cstate=hold|keep --smt=keep|off
-          --thp=always|never|keep --temp-warn=C --mem-max=PCT --load-max=FRAC
+Flags:    --turbo=keep|off --pinfreq=on|off --pinfreq-target=max|KHZ
+          --cstate=hold|keep --smt=keep|off
+          --thp=always|never|keep --thp-defrag=never|always|madvise|keep
+          --governor=GOV|keep --epp=EPP|keep
+          --swappiness=N|keep --numa-balancing=N|keep --aslr=0|1|2|keep
+          --nmi-watchdog=N|keep --drop-caches=on|off
+          --nvidia-persist=on|off|keep --nvidia-clock=max|keep
+          --amdgpu-perf=LEVEL|keep --rocm-perf=LEVEL|keep
+          --temp-warn=C --mem-max=PCT --load-max=FRAC
           --swap-max=KB --dirty-max=KB --freq-dip=FRAC --sample=SEC
           --logs=DIR --state=DIR --profile=FILE | -p FILE
 Precedence: flags > profile file > WATCHCUB_* env > defaults.
@@ -724,9 +827,22 @@ while [ $# -gt 0 ]; do
         --profile=*)    PROFILE_FILE="${1#*=}"; shift;;
         --turbo=*)      CLI_CFG[TURBO]="${1#*=}"; shift;;
         --pinfreq=*)    CLI_CFG[PINFREQ]="${1#*=}"; shift;;
+        --pinfreq-target=*) CLI_CFG[PINFREQ_TARGET]="${1#*=}"; shift;;
         --cstate=*)     CLI_CFG[CSTATE]="${1#*=}"; shift;;
         --smt=*)        CLI_CFG[SMT]="${1#*=}"; shift;;
         --thp=*)        CLI_CFG[THP]="${1#*=}"; shift;;
+        --thp-defrag=*) CLI_CFG[THP_DEFRAG]="${1#*=}"; shift;;
+        --governor=*)   CLI_CFG[GOVERNOR]="${1#*=}"; shift;;
+        --epp=*)        CLI_CFG[EPP]="${1#*=}"; shift;;
+        --swappiness=*) CLI_CFG[SWAPPINESS]="${1#*=}"; shift;;
+        --numa-balancing=*) CLI_CFG[NUMA_BALANCING]="${1#*=}"; shift;;
+        --aslr=*)       CLI_CFG[ASLR]="${1#*=}"; shift;;
+        --nmi-watchdog=*) CLI_CFG[NMI_WATCHDOG]="${1#*=}"; shift;;
+        --drop-caches=*) CLI_CFG[DROP_CACHES]="${1#*=}"; shift;;
+        --nvidia-persist=*) CLI_CFG[NVIDIA_PERSIST]="${1#*=}"; shift;;
+        --nvidia-clock=*)   CLI_CFG[NVIDIA_CLOCK]="${1#*=}"; shift;;
+        --amdgpu-perf=*)    CLI_CFG[AMDGPU_PERF]="${1#*=}"; shift;;
+        --rocm-perf=*)      CLI_CFG[ROCM_PERF]="${1#*=}"; shift;;
         --temp-warn=*)  CLI_CFG[TEMP_WARN]="${1#*=}"; shift;;
         --mem-max=*)    CLI_CFG[MEM_MAX]="${1#*=}"; shift;;
         --load-max=*)   CLI_CFG[LOAD_MAX]="${1#*=}"; shift;;
@@ -734,8 +850,8 @@ while [ $# -gt 0 ]; do
         --dirty-max=*)  CLI_CFG[DIRTY_MAX]="${1#*=}"; shift;;
         --freq-dip=*)   CLI_CFG[FREQ_DIP]="${1#*=}"; shift;;
         --sample=*)     CLI_CFG[SAMPLE]="${1#*=}"; shift;;
-        --logs=*)       LOG_ROOT="${1#*=}"; shift;;
-        --state=*)      STATE_DIR="${1#*=}"; shift;;
+        --logs=*)       CLI_CFG[LOGS]="${1#*=}"; shift;;
+        --state=*)      CLI_CFG[STATE]="${1#*=}"; shift;;
         --)             shift; RUN_ARGS=("$@"); break;;
         -*)             echo "Unknown flag: $1" >&2; usage;;
         *)  if [ "$CMD" = profile ] && [ -z "$PPATH" ]; then PPATH="$1"; shift
