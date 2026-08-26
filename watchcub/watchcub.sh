@@ -32,6 +32,7 @@
 #   --swap-max=<kB>        --dirty-max=<kB>      --freq-dip=<frac>
 #   --sample=<sec>         --logs=<dir>          --state=<dir>
 #   --profile=<file> | -p <file>
+#   --paranoid=<N>       (trace-unlock only) set perf_event_paranoid instead of default -1
 #
 # Pure bash + /proc + /sys, everything feature-detected. Handles intel_pstate,
 # amd-pstate(-epp), acpi-cpufreq. AMD: no thermal_throttle counters, so
@@ -581,7 +582,16 @@ TRACE_KNOBS=( "kernel.perf_event_paranoid=-1" "kernel.kptr_restrict=0"
               "kernel.ftrace_enabled=1" )
 do_trace_unlock() { need_root; action_log trace-unlock; mkdir -p "$STATE_DIR"
     info "Loosening perf/eBPF sysctls (dedicated bench box only!)"
-    local kv; for kv in "${TRACE_KNOBS[@]}"; do save_sysctl "${kv%%=*}" "${kv#*=}"; done; }
+    if [ -n "$PARANOID_VAL" ]; then
+        log "kernel.perf_event_paranoid" "$PARANOID_VAL (--paranoid override, default -1)"
+    fi
+    local kv; for kv in "${TRACE_KNOBS[@]}"; do
+        if [ "${kv%%=*}" = kernel.perf_event_paranoid ] && [ -n "$PARANOID_VAL" ]; then
+            save_sysctl kernel.perf_event_paranoid "$PARANOID_VAL"
+        else
+            save_sysctl "${kv%%=*}" "${kv#*=}"
+        fi
+    done; }
 do_trace_lock()   { need_root; action_log trace-lock; info "Re-tightening"
     local kv; for kv in "${TRACE_KNOBS[@]}"; do restore_sysctl "${kv%%=*}"; done
     rmdir "$STATE_DIR" 2>/dev/null || true; }
@@ -809,6 +819,7 @@ Flags:    --turbo=keep|off --pinfreq=on|off --pinfreq-target=max|KHZ
           --temp-warn=C --mem-max=PCT --load-max=FRAC
           --swap-max=KB --dirty-max=KB --freq-dip=FRAC --sample=SEC
           --logs=DIR --state=DIR --profile=FILE | -p FILE
+          --paranoid=-1|0|1|2|3|4   (trace-unlock only; default -1)
 Precedence: flags > profile file > WATCHCUB_* env > defaults.
 Profiles are never auto-loaded; pass one with -p FILE or \$WATCHCUB_PROFILE.
 EOF
@@ -817,6 +828,7 @@ EOF
 
 declare -A CLI_CFG=()
 RUN_ARGS=()
+PARANOID_VAL=""
 CMD="${1:-}"; [ $# -gt 0 ] && shift
 PACTION=""; PPATH=""
 if [ "$CMD" = profile ]; then PACTION="${1:-show}"; [ $# -gt 0 ] && shift; fi
@@ -852,6 +864,12 @@ while [ $# -gt 0 ]; do
         --sample=*)     CLI_CFG[SAMPLE]="${1#*=}"; shift;;
         --logs=*)       CLI_CFG[LOGS]="${1#*=}"; shift;;
         --state=*)      CLI_CFG[STATE]="${1#*=}"; shift;;
+        --paranoid=*)   PARANOID_VAL="${1#*=}"
+                        case "$PARANOID_VAL" in
+                            -1|0|1|2|3|4) ;;
+                            *) echo "Invalid value '$PARANOID_VAL' for --paranoid (use -1,0,1,2,3,4)" >&2; exit 1;;
+                        esac
+                        shift;;
         --)             shift; RUN_ARGS=("$@"); break;;
         -*)             echo "Unknown flag: $1" >&2; usage;;
         *)  if [ "$CMD" = profile ] && [ -z "$PPATH" ]; then PPATH="$1"; shift
@@ -860,6 +878,10 @@ while [ $# -gt 0 ]; do
 done
 
 finalize_cfg
+
+if [ -n "$PARANOID_VAL" ] && [ "$CMD" != trace-unlock ]; then
+    echo "--paranoid=N is only valid with 'trace-unlock'" >&2; usage
+fi
 
 case "$CMD" in
     status)       show_status ;;

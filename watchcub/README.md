@@ -78,7 +78,7 @@ sudo watchcub bench -p watchcub.profile
 | `restore` | yes | Revert every value that `bench`/`trace-unlock` saved. Deletes the state dir. |
 | `profile new [path]` | no | Write an editable, commented profile file (default `./watchcub.profile`). Won't overwrite. |
 | `profile show [flags]` | no | Print the effective configuration and where each part came from. |
-| `trace-unlock` | yes | Loosen `perf_event_paranoid`, `kptr_restrict`, ptrace scope, eBPF JIT - for `perf`/uProf/VTune sessions. Reverted by `trace-lock` or `restore`. |
+| `trace-unlock` | yes | Loosen `perf_event_paranoid` (default `-1`; `--paranoid=0,1,2,3,4` overrides), `kptr_restrict`, ptrace scope, eBPF JIT - for `perf`/uProf/VTune sessions. Reverted by `trace-lock` or `restore`. |
 | `trace-lock` | yes | Re-tighten the above. |
 
 \* `run` itself needs no root, but reading some sensors and the settings snapshot is richer with it.
@@ -105,8 +105,10 @@ CLI flag  >  profile file  >  WATCHCUB_<KEY> env var  >  built-in default
 | `DIRTY_MAX` | `--dirty-max=` | `102400` | kB. verify warns on pending writeback above this. |
 | `FREQ_DIP` | `--freq-dip=` | `0.97` | run warns when the benchmark core's min freq drops below this x its max (throttling detector). |
 | `SAMPLE` | `--sample=` | `0.5` | Seconds between freq/temp samples during run. |
+| `LOGS` | `--logs=` | `/var/tmp/watchcub-logs` | Directory where run logs (`run-*` dirs) go. |
+| `STATE` | `--state=` | `/var/tmp/watchcub-state` | Directory where `bench` saves state for `restore`. |
 
-Non-profile flags: `--profile=FILE` / `-p FILE`, `--logs=DIR` (default `/var/tmp/watchcub-logs`), `--state=DIR` (default `/var/tmp/watchcub-state`).
+Non-profile flag: `--profile=FILE` / `-p FILE` (selects which profile file to read; `$WATCHCUB_PROFILE` is the env equivalent).
 
 Examples:
 
@@ -119,7 +121,7 @@ sudo watchcub bench -p profiles/ci.profile         # explicit profile file
 
 ## Profiles
 
-`watchcub profile new` writes a plain `KEY=VALUE` file with every parameter, its default, and a one-line comment. Edit it, commit it next to your benchmark code.
+`watchcub profile new` writes a plain `KEY=VALUE` file with every tunable parameter (including the `LOGS`/`STATE` directories), its default, and a one-line comment — plus a reference section listing the settings `bench` always applies (governor/EPP → performance, swappiness, NUMA balancing, ASLR, NMI watchdog, THP defrag, page-cache drop, GPU locks), so the file documents the complete bench preset. Edit it, commit it next to your benchmark code.
 
 Profiles are never auto-loaded. Pass one with `-p/--profile FILE`, or set `$WATCHCUB_PROFILE`; no file given means built-in defaults. Unknown keys are ignored with a warning; invalid values abort naming the offending source.
 
@@ -178,7 +180,7 @@ Everything is read and saved *before* being written, so `restore` is exact, not 
 - CPU: governor and EPP -> `performance` on every policy, boost per `TURBO`, min-freq per `PINFREQ` (pinned against `scaling_max_freq` after the boost decision, so it's correct with boost off), SMT per `SMT`. C-states per `CSTATE` via a PM-QoS hold on `/dev/cpu_dma_latency` (background holder process, killed on restore).
 - Kernel/memory: `swappiness=1`, NUMA balancing off, ASLR off, NMI watchdog off (frees a PMU counter for `perf`), THP per `THP`, page cache dropped once.
 - GPU: NVIDIA persistence mode + SM/mem clocks locked to max (`-lgc`/`-lmc`), amdgpu `power_dpm_force_performance_level=high`, rocm-smi perflevel high.
-- Tracing (only via `trace-unlock`): `perf_event_paranoid=-1`, `kptr_restrict=0`, ptrace scope 0, eBPF JIT on. Security-loosening - dedicated bench boxes only.
+- Tracing (only via `trace-unlock`): `perf_event_paranoid=-1` (default; `--paranoid=N` overrides), `kptr_restrict=0`, ptrace scope 0, eBPF JIT on. Security-loosening - dedicated bench boxes only.
 
 ## Hardware notes
 
