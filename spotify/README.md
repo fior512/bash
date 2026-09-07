@@ -1,6 +1,6 @@
 # Spotify (UI-less)
 
-I run Spotify without a UI to keep it out of my benchmark results. The official client renders frames I never look at, through Electron and the GPU. I only need the backend to play music.
+I moved Spotify to UI-less usage to reduce CPU usage reducing noise during low-latency benchmarks while keeping music. The official client renders frames i don't need, plus Electron optimized-less memory usage.
 
 ## Setup
 
