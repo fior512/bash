@@ -10,4 +10,4 @@ An holder for bash commands and scripts I find useful. Each subdirectory is a st
 | [`gittraffic/`](gittraffic/) | Tracks clones/unique cloners for your GitHub opened repos over time |
 | [`Nuniform/`](Nuniform/) | Static scan for leftover dev artifacts (secrets, debug prints, TODOs) before pushing |
 | [`watchcub/`](watchcub/) | Setting up favorable kernel settings to run benchmark + telemetry |
-| [`spotify/`](spotify/) | UI-less spotify, reducing CPU usage when doing benchmarks while keeping music |
+| [`spotify/`](spotify/) | UI-less spotify, reducing CPU usage when doing benchmarks |
