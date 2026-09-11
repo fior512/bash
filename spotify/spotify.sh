@@ -22,6 +22,21 @@ sink_volume() {
     }'
 }
 
+#ensure playlist repeat
+ensure_loop() {
+  local repeat_state
+  repeat_state=$(spotify_player get key playback 2>/dev/null \
+    | jq -r '.repeat_state // empty')
+  case "$repeat_state" in
+    context) ;;
+    off) spotify_player playback repeat >/dev/null 2>&1 ;;
+    track)
+      spotify_player playback repeat >/dev/null 2>&1
+      spotify_player playback repeat >/dev/null 2>&1 ;;
+  esac
+}
+ensure_loop
+
 {
 case "$cmd" in
   p)
@@ -30,6 +45,22 @@ case "$cmd" in
     spotify_player playback next ;;
   -)
     spotify_player playback previous ;;
+  s)
+    before=$(spotify_player get key playback 2>/dev/null \
+      | jq -r '.shuffle_state // "unknown"')
+    spotify_player playback shuffle
+    state="$before"
+    for _ in 1 2 3 4 5; do
+      sleep 0.3
+      state=$(spotify_player get key playback 2>/dev/null \
+        | jq -r '.shuffle_state // "unknown"')
+      [[ "$state" != "$before" ]] && break
+    done
+    if [[ "$state" == "true" ]]; then
+      echo "shuffle: on"
+    else
+      echo "shuffle: off"
+    fi ;;
   v)
     # volume through spotify use `Spotify Connect`, costing ~300ms/call (network)
     # pipewire costing ~10ms/call (local)
@@ -45,13 +76,17 @@ case "$cmd" in
       pactl set-sink-input-mute "$sink_idx" toggle
     fi ;;
   "")
-    # no arg: launch spotify_player or music/vol status
+    # no arg: launch spotify_player or music+vol status
     track=$(spotify_player get key playback 2>/dev/null | jq -r \
       'if .item == null then empty else
         "\(if .is_playing then "playing" else "paused" end): \(.item.name) - \(.item.artists[0].name)"
       end' 2>/dev/null)
     [[ -z "$track" ]] && exit 0
     sink_idx=$(find_sink_idx)
+    if [[ -z "$sink_idx" && "$track" == playing:* ]]; then
+      # "paused" || "playing"
+      track="paused${track#playing}"
+    fi
     if [[ -n "$sink_idx" ]]; then
       vol=$(sink_volume "$sink_idx")
       echo "$track [${vol:-?}%]"
@@ -59,7 +94,7 @@ case "$cmd" in
       echo "$track [no Pipewire]"
     fi ;;
   *)
-    echo "usage: spotify {p|+|-|v [0-100]}" ;;
+    echo "usage: spotify {p|+|-|s|v [0-100]}" ;;
 esac
 } | sed '/^$/d'
 
