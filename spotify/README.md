@@ -17,6 +17,7 @@ It has no UI. It uses between 5x less CPU and 10 to 5x less RAM than the officia
 | `p` | Toggle play or pause. |
 | `+` | Skip to the next track. |
 | `-` | Skip to the previous track. |
+| `s` | Toggle playlist *shuffle* | 
 | `v [0-100]` | Set volume to a percent. |
 | `v` | Toggle to mute/unmute music |
 
